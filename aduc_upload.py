@@ -72,6 +72,7 @@ class AducConnection:
         self.numTries:int=3
         self.pageSize=512
         self._connection:typing.Optional[serial.Serial]=None
+        self._connectionEstablished=False
 
     def connect(self)->serial.Serial:
         """
@@ -105,6 +106,22 @@ class AducConnection:
         """
         return bytes([0xFF&(0-sum(data))])
 
+    def waitForConnection(self)->bool:
+        """
+        Wait for an actual device to respond on the serial port
+        """
+        if self._connectionEstablished:
+            return True
+        ser=self.connect()
+        print(f'Wait for connection...')
+        response=bytes()
+        while not response:
+            ser.write(bytes([0x08])) # send backspaces
+            response=ser.read(24) # until it responds with its id
+        print('  Connected to:',response.decode('ascii').strip())
+        self._connectionEstablished=True
+        return True
+
     def _sendPacket(self,command:str,address:int,data:bytes)->bool:
         """
         Send a specified command packet to the device
@@ -129,10 +146,12 @@ class AducConnection:
         while not response:
             response=ser.read(1)
         if response[0]==0x06: # device responded with success
+            print('.',end='')
             return True
         if response[0]==0x07: # device responded with fail
+            print('X',end='')
             return False
-        raise AducException(f'Unexpected serial response: 0x{response[0]}')
+        raise AducException(f'Unexpected serial response: {hex(response[0])}')
 
     def _erasePacket(self,address:int,numPages:int)->bool:
         """
@@ -149,17 +168,28 @@ class AducConnection:
         Erase flash starting at address and ending at address+numBytes
         (will always round up to erase entire pages)
         """
-        return self._erasePacket(address,numBytes//self.pageSize)
+        print(f'Erasing {numBytes} bytes at {hex(address)}...',end='')
+        ret=self._erasePacket(address,numBytes//self.pageSize)
+        if ret:
+            print('OK')
+        else:
+            print('FAIL')
+        return ret
 
     def _writePacket(self,address:int,data:bytes)->bool:
         """
         Send a write packet to the device
         """
         ret=False
+        print(f'Write {len(data)} bytes to {hex(address)}...',end='')
         for _ in range(self.numTries):
             ret=self._sendPacket('W',address,data)
             if ret:
                 break
+        if ret:
+            print('OK')
+        else:
+            print('FAIL')
         return ret
 
     def write(self,address:int,data:bytes,
@@ -174,10 +204,14 @@ class AducConnection:
         ret=True
         complete=0
         total=len(data)
+        weConnected=self._connectionEstablished is False
+        if weConnected:
+            self.waitForConnection()
         self.erase(address,total)
         while complete<total:
-            numWritten=min(total-complete,250)
-            ret=self._writePacket(address,data[complete:complete+numWritten])
+            numWritten=min(total-complete,248)
+            chunk=data[complete:complete+numWritten]
+            ret=self._writePacket(address,chunk)
             if not ret:
                 return ret
             complete+=numWritten
@@ -197,6 +231,8 @@ class AducConnection:
         elif andReset:
             self.reset()
         self.disconnect()
+        if weConnected:
+            self._connectionEstablished=False
         return ret
 
     def upload(self,
@@ -251,20 +287,21 @@ class AducConnection:
         Upload an intel hex object to the device
         """
         ret=True
+        self.waitForConnection()
         totalbytes=0
         for start,stop in ihex.segments():
             totalbytes+=stop-start
         uploaded=0
         for start,stop in ihex.segments():
             amt=stop-start
-            print('writing %d bytes to 0x%08x'%(amt,start))
             def progcb(pct:float):
                 if progressCB is not None:
                     progressCB((uploaded+pct*amt)/totalbytes)
-            ret=self.write(start,ihex[start:stop],progcb,andVerify,andRun,andReset)
+            ret=self.write(start,ihex.tobinarray(start,stop),progcb,andVerify,andRun,andReset)
             if not ret:
                 break
             uploaded+=amt
+        self._connectionEstablished=False
         return ret
     uploadBytes=uploadData
 
@@ -273,10 +310,15 @@ class AducConnection:
         Send a verify packet to the device
         """
         ret=False
+        print(f'Verify {len(data)} bytes at {hex(address)}...',end='')
         for _ in range(self.numTries):
             ret=self._sendPacket('V',address,data)
             if ret:
                 break
+        if ret:
+            print('OK')
+        else:
+            print('FAIL')
         return ret
 
     def _verifyShift(self,data:bytes)->bytes:
@@ -370,9 +412,9 @@ def cmdline(args:typing.Iterable[str])->int:
                 port=av[1].strip()
             elif av[0]=='--verify':
                 andVerify=len(av)<2 or av[1][0].lower() in ('t','y','1')
-            elif av[0]=='--verify':
+            elif av[0]=='--run':
                 andRun=len(av)<2 or av[1][0].lower() in ('t','y','1')
-            elif av[0]=='--verify':
+            elif av[0]=='--reset':
                 andReset=len(av)<2 or av[1][0].lower() in ('t','y','1')
             else:
                 printhelp=True
@@ -384,7 +426,7 @@ def cmdline(args:typing.Iterable[str])->int:
             blocks=int(pct*WIDTH)
             filled='#'*blocks
             empty='_'*(WIDTH-blocks)
-            print(f'\r[{filled}{empty}]')
+            #print(f'\r[{filled}{empty}]')
         print()
         if filename=='STDIN':
             data=sys.stdin.read().encode('ascii')
