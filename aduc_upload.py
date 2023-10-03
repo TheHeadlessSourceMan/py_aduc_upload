@@ -17,13 +17,22 @@ import typing
 try:
     import serial
 except ImportError as e:
-    print('pyserial not found.  Try something like\n\tpip install pyserial')
+    print('pyserial not found.  Try something like:')
+    print('    pip install pyserial')
     raise e
 try:
     import intelhex
 except ImportError as e:
-    print('intelhex library (for .hex format) was not found.  Try something like\n\tpip install intelhex')
+    print('intelhex library (for .hex format) was not found.  Try something like:')
+    print('    pip install intelhex')
     raise e
+
+
+class AducException(Exception):
+    """
+    An irrecoverable issue occourred.
+    (NOTE: most issues are dealt with by returning False from the command)
+    """
 
 
 class AducConnection:
@@ -61,6 +70,7 @@ class AducConnection:
         self.xonxoff=xonxoff
         self.rtscts=rtscts
         self.numTries:int=3
+        self.pageSize=512
         self._connection:typing.Optional[serial.Serial]=None
 
     def connect(self)->serial.Serial:
@@ -68,7 +78,9 @@ class AducConnection:
         connect the serial port (called automatically as needed)
         """
         if not self._connection:
-            self._connection=serial.Serial(self.port,self.baudrate,self.bytesize,self.parity,self.stopbits,self.timeout,self.xonxoff,self.rtscts)
+            self._connection=serial.Serial(
+                self.port,self.baudrate,self.bytesize,self.parity,
+                self.stopbits,self.timeout,self.xonxoff,self.rtscts)
         return self._connection
 
     def disconnect(self):
@@ -97,14 +109,14 @@ class AducConnection:
         """
         Send a specified command packet to the device
         """
-        data:bytearray=bytearray(data) # create a copy to modify
         packet_len=len(data)+5 # 1byte command + 4byte address + the data
         magic:bytes=bytes([0x07,0x0E])
         addr_bytes:bytes=address.to_bytes(length=4,byteorder="little",signed=False)
-        data.insert(0,addr_bytes)
-        data.insert(0,command.encode('ascii')[0])
-        data.insert(0,packet_len)
-        checksum=self._checksum(data)
+        sendbuf=bytearray(addr_bytes)
+        sendbuf.insert(0,command.encode('ascii')[0])
+        sendbuf.insert(0,packet_len)
+        sendbuf.extend(data)
+        checksum=self._checksum(sendbuf)
         ser=self.connect()
         # dispose of any lingering incoming crap
         response='x'
@@ -112,15 +124,15 @@ class AducConnection:
             response=ser.read(1)
         # send it
         ser.write(magic)
-        ser.write(data)
-        ser.write(checksum.to_bytes(length=4,byteorder='little',signed=False))
-        while not response: 
+        ser.write(sendbuf)
+        ser.write(checksum)
+        while not response:
             response=ser.read(1)
         if response[0]==0x06: # device responded with success
             return True
         if response[0]==0x07: # device responded with fail
             return False
-        raise Exception('Unexpected serial response: 0x%02x',response[0])
+        raise AducException(f'Unexpected serial response: 0x{response[0]}')
 
     def _erasePacket(self,address:int,numPages:int)->bool:
         """
@@ -128,7 +140,7 @@ class AducConnection:
         """
         ret=False
         if numPages<1 or numPages>124:
-            raise Exception('numPages must be 1..124 (%d given)'%numPages)
+            raise AducException('numPages must be 1..124 (%d given)'%numPages)
         ret=self._sendPacket('E',address,numPages.to_bytes(1,byteorder='little',signed=False))
         return ret
 
@@ -137,8 +149,7 @@ class AducConnection:
         Erase flash starting at address and ending at address+numBytes
         (will always round up to erase entire pages)
         """
-        pageSize=512
-        self._erasePacket(address,numBytes//pageSize)
+        return self._erasePacket(address,numBytes//self.pageSize)
 
     def _writePacket(self,address:int,data:bytes)->bool:
         """
@@ -151,7 +162,10 @@ class AducConnection:
                 break
         return ret
 
-    def write(self,address:int,data:bytes,progressCB:typing.Optional[typing.Callable[[float],None]]=None,andVerify=True,andRun=False,andReset=False)->bool:
+    def write(self,address:int,data:bytes,
+        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
+        andVerify=True,andRun=False,andReset=False
+        )->bool:
         """
         Write some data to the device.
 
@@ -184,8 +198,12 @@ class AducConnection:
             self.reset()
         self.disconnect()
         return ret
-    
-    def upload(self,filename:str,progressCB:typing.Optional[typing.Callable[[float],None]]=None,andVerify=True,andRun=False,andReset=False)->bool:
+
+    def upload(self,
+        filename:str,
+        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
+        andVerify=True,andRun=False,andReset=False
+        )->bool:
         """
         Upload an intel hex file(.hex) or a binary file (.bin) to the device
         """
@@ -224,7 +242,11 @@ class AducConnection:
             ihex.frombytes(data)
         return self.uploadIhex(ihex,progressCB,andVerify,andRun,andReset)
 
-    def uploadIhex(self,ihex:intelhex.IntelHex,progressCB:typing.Optional[typing.Callable[[float],None]]=None,andVerify=True,andRun=False,andReset=False)->bool:
+    def uploadIhex(self,
+        ihex:intelhex.IntelHex,
+        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
+        andVerify=True,andRun=False,andReset=False
+        )->bool:
         """
         Upload an intel hex object to the device
         """
@@ -244,7 +266,8 @@ class AducConnection:
                 break
             uploaded+=amt
         return ret
-    
+    uploadBytes=uploadData
+
     def _verifyPacket(self,address:int,data:bytes)->bool:
         """
         Send a verify packet to the device
@@ -262,12 +285,16 @@ class AducConnection:
         """
         return bytes([0xFF & (b << 3 | b >> 5) for b in data])
 
-    def verify(self,address:int,data:bytes,progressCB:typing.Optional[typing.Callable[[float],None]]=None)->bool:
+    def verify(self,
+        address:int,
+        data:bytes,
+        progressCB:typing.Optional[typing.Callable[[float],None]]=None
+        )->bool:
         """
         Verify some data
         """
         ret=True
-        data=self._verifyShift(data) 
+        data=self._verifyShift(data)
         complete=0
         total=len(data)
         while complete<total:
@@ -289,13 +316,13 @@ class AducConnection:
             if ret:
                 break
         return ret
-    
+
     def run(self)->bool:
         """
         Run the program by jumping to the start address
         """
         return self._runPacket(0)
-    
+
     def reset(self)->bool:
         """
         Run the program by causing a reset
@@ -307,16 +334,85 @@ def upload(filename:str,port:str='COM6',andVerify=True,andRun=False,andReset=Fal
     """
     shortcut to use AducConnection to upload and optionally verify, run, and/or reset the device
     """
-    return AducConnection(port).upload(filename,andVerify=andVerify,andRun=andRun,andReset=andReset)
+    return AducConnection(port).upload(filename,
+        andVerify=andVerify,andRun=andRun,andReset=andReset)
+
 
 def uploadBytes(data:bytes,port:str='COM6',andVerify=True,andRun=False,andReset=False)->bool:
     """
     shortcut to use AducConnection to upload and optionally verify, run, and/or reset the device
     """
-    return AducConnection(port).uploadBytes(data,andVerify=andVerify,andRun=andRun,andReset=andReset)
+    return AducConnection(port).uploadBytes(data,
+        andVerify=andVerify,andRun=andRun,andReset=andReset)
 
-ad=AducConnection()
-shifted=ad._verifyShift([0x01<<b for b in range(8)])
-print(['0x%02x'%s for s in shifted])
 
-print(ad._checksum([0x05,0x52,0x00,0x00,0x00,0x01]))
+def cmdline(args:typing.Iterable[str])->int:
+    """
+    Run the command line
+
+    :param args: command line arguments (WITHOUT the filename)
+    """
+    didSomething=False
+    printhelp=False
+    filename=''
+    port:str='COM6'
+    andVerify=True
+    andRun=False
+    andReset=False
+    worked=False
+    for arg in args:
+        if arg.startswith('-'):
+            av=arg.split('=',1)
+            av[0]=av[0].lower()
+            if av[0] in ('-h','--help'):
+                printhelp=True
+            elif av[0]=='--port':
+                port=av[1].strip()
+            elif av[0]=='--verify':
+                andVerify=len(av)<2 or av[1][0].lower() in ('t','y','1')
+            elif av[0]=='--verify':
+                andRun=len(av)<2 or av[1][0].lower() in ('t','y','1')
+            elif av[0]=='--verify':
+                andReset=len(av)<2 or av[1][0].lower() in ('t','y','1')
+            else:
+                printhelp=True
+        else:
+            filename=arg
+    if not printhelp and filename and port:
+        def progressCB(pct:float):
+            WIDTH=78
+            blocks=int(pct*WIDTH)
+            filled='#'*blocks
+            empty='_'*(WIDTH-blocks)
+            print(f'\r[{filled}{empty}]')
+        print()
+        if filename=='STDIN':
+            data=sys.stdin.read().encode('ascii')
+            worked = AducConnection(port).uploadBytes(data,
+                progressCB=progressCB,andVerify=andVerify,andRun=andRun,andReset=andReset)
+        else:
+            worked = AducConnection(port).upload(filename,
+                progressCB=progressCB,andVerify=andVerify,andRun=andRun,andReset=andReset)
+        didSomething=True
+    if printhelp or not didSomething:
+        print('USEAGE:')
+        print('  py_aduc_upload [options] [filename]')
+        print('OPTIONS:')
+        print('  -h ............... this help')
+        print('  --port= .......... serial port (what your os calls it, eg "COM1" or "/dev/ttyS0")')
+        print('  --run[=t/f]  ..... auto-run after uploading (default = f)')
+        print('  --reset[=t/f]  ... reset device after uploading (default = f)')
+        print('  --verify[=t/f]  .. verify after uploading (default = t)')
+        print('FILENAME:')
+        print('  If the filename is STDIN it will read the file bytes from standard i/o')
+        return 1
+    if worked:
+        print('SUCCESS')
+        return 0
+    print('FAIL')
+    return -1
+
+
+if __name__=='__main__':
+    import sys
+    sys.exit(cmdline(sys.argv[1:]))
