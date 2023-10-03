@@ -21,3 +21,6 @@ Or use the shortcut function:
 ```
 
 Naturally, there is a command line as well.
+```
+  py_aduc_upload --port=COM1 myprogram.hex --run
+```
