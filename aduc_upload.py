@@ -12,6 +12,9 @@ General useage:
         ac.run()
 Or use the shortcut:
     upload('myprogram.hex','COM1',andRun=True)
+
+For more info on the protocol, see:
+    https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf    
 """
 import typing
 try:
@@ -50,6 +53,9 @@ class AducConnection:
             ac.run()
     Or use the shortcut:
         upload('myprogram.hex','COM1',andRun=True)
+    
+    For more info on the protocol, see:
+        https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf
     """
 
     def __init__(self,
@@ -71,6 +77,9 @@ class AducConnection:
         self.rtscts=rtscts
         self.numTries:int=3
         self.pageSize=512
+        # According to AN-724 you can send up to 250 bytes per packet,
+        # but ARMWSD.exe only sends 16 for some reason
+        self.bytesPerWritePacket=16
         self._connection:typing.Optional[serial.Serial]=None
         self._connectionEstablished=False
 
@@ -113,7 +122,7 @@ class AducConnection:
         if self._connectionEstablished:
             return True
         ser=self.connect()
-        print(f'Wait for connection...')
+        print('Wait for connection...')
         response=bytes()
         while not response:
             ser.write(bytes([0x08])) # send backspaces
@@ -122,20 +131,32 @@ class AducConnection:
         self._connectionEstablished=True
         return True
 
+    def _remapAddress(self,address:int)->int:
+        """
+        During normal operation, flash is mirrored from 0x0080_0000 to 0x0000_0000
+        ARMWSD prefers to write to this for some reason.
+        """
+        if address>=0x0080000:
+            address-=0x0080000
+        return address
+
     def _sendPacket(self,command:str,address:int,data:bytes)->bool:
         """
         Send a specified command packet to the device
         """
+        address=self._remapAddress(address)
         packet_len=len(data)+5 # 1byte command + 4byte address + the data
+        if packet_len>255:
+            raise Exception('Packet size too large!')
         magic:bytes=bytes([0x07,0x0E])
-        addr_bytes:bytes=address.to_bytes(length=4,byteorder="little",signed=False)
+        addr_bytes:bytes=address.to_bytes(length=4,byteorder="big",signed=False)
         sendbuf=bytearray(addr_bytes)
         sendbuf.insert(0,command.encode('ascii')[0])
         sendbuf.insert(0,packet_len)
         sendbuf.extend(data)
         checksum=self._checksum(sendbuf)
         ser=self.connect()
-        # dispose of any lingering incoming crap
+        # dispose of any lingering incoming junk
         response='x'
         while response:
             response=ser.read(1)
@@ -199,8 +220,10 @@ class AducConnection:
         """
         Write some data to the device.
 
-        Will also erase, and (optionally) verify, run, and/or reset.
+        Will also erase, and (optionally) verify, run, and/or reset
+        depending on what control flags you pass in.
         """
+        startAddress=address
         ret=True
         complete=0
         total=len(data)
@@ -209,7 +232,7 @@ class AducConnection:
             self.waitForConnection()
         self.erase(address,total)
         while complete<total:
-            numWritten=min(total-complete,248)
+            numWritten=min(total-complete,self.bytesPerWritePacket)
             chunk=data[complete:complete+numWritten]
             ret=self._writePacket(address,chunk)
             if not ret:
@@ -225,7 +248,7 @@ class AducConnection:
             def pcb(pct:float):
                 if progressCB is not None:
                     progressCB(0.66+0.33*pct)
-            ret=self.verify(address,data,pcb)
+            ret=self.verify(startAddress,data,pcb)
         if andRun:
             self.run()
         elif andReset:
@@ -339,13 +362,23 @@ class AducConnection:
         data=self._verifyShift(data)
         complete=0
         total=len(data)
+        weConnected=self._connectionEstablished is False
+        if weConnected:
+            self.waitForConnection()
         while complete<total:
-            ret=self._verifyPacket(address,data)
+            numVerified=min(total-complete,self.bytesPerWritePacket)
+            chunk=data[complete:complete+numVerified]
+            ret=self._verifyPacket(address,chunk)
             if not ret:
                 return ret
+            complete+=numVerified
+            address+=numVerified
             if progressCB is not None:
                 pct=complete/total
                 progressCB(pct)
+        if weConnected:
+            self.disconnect()
+            self._connectionEstablished=False
         return ret
 
     def _runPacket(self,address:int)->bool:
@@ -363,13 +396,25 @@ class AducConnection:
         """
         Run the program by jumping to the start address
         """
-        return self._runPacket(0)
+        print('Running...',end='')
+        ret=self._runPacket(0)
+        if ret:
+            print('OK')
+        else:
+            print('FAIL')
+        return ret
 
     def reset(self)->bool:
         """
         Run the program by causing a reset
         """
-        return self._runPacket(1)
+        print('Resetting...',end='')
+        ret=self._runPacket(1)
+        if ret:
+            print('OK')
+        else:
+            print('FAIL')
+        return ret
 
 
 def upload(filename:str,port:str='COM6',andVerify=True,andRun=False,andReset=False)->bool:

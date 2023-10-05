@@ -5,12 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "aduc_upload",
+            "name": "upload",
             "type": "python",
             "request": "launch",
             "program": "aduc_upload.py",
             "console": "integratedTerminal",
             "args": ["--port=COM6","..\\..\\samples\\stackoverflow_uart\\main.hex"],
+            "justMyCode": true
+        },
+        {
+            "name": "upload & run",
+            "type": "python",
+            "request": "launch",
+            "program": "aduc_upload.py",
+            "console": "integratedTerminal",
+            "args": ["--port=COM6","..\\..\\samples\\stackoverflow_uart\\main.hex","--run"],
+            "justMyCode": true
+        },
+        {
+            "name": "upload & reset",
+            "type": "python",
+            "request": "launch",
+            "program": "aduc_upload.py",
+            "console": "integratedTerminal",
+            "args": ["--port=COM6","..\\..\\samples\\stackoverflow_uart\\main.hex","--reset"],
             "justMyCode": true
         }
     ]
