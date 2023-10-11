@@ -37,7 +37,6 @@ class AducException(Exception):
     (NOTE: most issues are dealt with by returning False from the command)
     """
 
-
 class AducConnection:
     """
     Python interface to the serial uploader for Analog Devices ADuC70xx family of devices.
@@ -127,7 +126,9 @@ class AducConnection:
         while not response:
             ser.write(bytes([0x08])) # send backspaces
             response=ser.read(24) # until it responds with its id
-        print('  Connected to:',response.decode('ascii').strip())
+            if response and response[0] in (0x07,0x80):
+                print('\n****************************\nDevice detected, but not in flash mode.\nPlease reboot in flash mode!\n****************************\n')
+        print('  OK! Connected to device:',response.decode('ascii').strip())
         self._connectionEstablished=True
         return True
 
