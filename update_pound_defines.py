@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Programatically update #define's
 """
@@ -221,7 +222,10 @@ def cmdline(args:typing.Iterable[str])->int:
                 else:
                     buildDate=datetime.datetime.now()
             elif av[0].startswith('--'):
-                name2val[av[0][2:]]=av[1]
+                if len(av)>1:
+                    name2val[av[0][2:]]=av[1]
+                else:
+                    name2val[av[0][2:]]='true'
             else:
                 printhelp=True
         else:

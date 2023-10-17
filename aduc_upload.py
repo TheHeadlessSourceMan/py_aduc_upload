@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Python interface to the serial uploader for Analog Devices ADuC70xx family of devices.
 
