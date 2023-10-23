@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "octopus ui",
+            "type": "python",
+            "request": "launch",
+            "program": "octopus_ui.py",
+            "console": "integratedTerminal",
+            "args": [],
+            "justMyCode": true
+        },
+        {
             "name": "upload",
             "type": "python",
             "request": "launch",
