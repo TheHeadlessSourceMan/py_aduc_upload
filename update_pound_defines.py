@@ -214,6 +214,8 @@ def cmdline(args:typing.Iterable[str])->int:
             avl=av[0].lower()
             if avl=='-h':
                 printhelp=True
+            elif avl=='-d':
+                pass # deal with this later
             elif avl=='--version':
                 version=av[1].strip()
             elif avl=='--build_date':
@@ -238,11 +240,18 @@ def cmdline(args:typing.Iterable[str])->int:
         print(code)
     else:
         updateVersionInFile(filename,version,buildDate,name2val,quotestrings) # type: ignore
+    if '-d' in args:
+        if buildDate is None:
+            print(datetime.datetime.now().astimezone().isoformat())
+        else:
+            print(buildDate.astimezone().isoformat())
+        printhelp=False
     if printhelp:
         print('USEAGE:')
         print('  update_pound_defines [options] [filename]')
         print('OPTIONS:')
         print('  -h .................... this help')
+        print('  -d  ................... dump the build date')
         print('  --version= ............ update the version')
         print('  --build_date[=date]  .. update the build date')
         print('                          if date not specified, use now()')
