@@ -1,19 +1,33 @@
+"""
+A flash loader ui capable of flashing a nuber of
+devices to the same image all at the same time!
+"""
 import typing
 import os
 import threading
 import queue
 import time
-import random
 from tkinter import *
 from tkinter.ttk import *
-
+from aduc_upload import AducConnection,AducStatus
+try:
+    import serial
+    import serial.tools.list_ports
+except ImportError as e:
+    print('pyserial not found.  Try something like:')
+    print('    pip install pyserial')
+    raise e
 
 class PortStatusMessage:
+    """
+    A message envelope to be passed from port events
+    to the ui for display.
+    """
     def __init__(self,
-            portName:typing.Optional[str]=None,
-            progress:typing.Optional[float]=None,
-            status:typing.Optional[str]=None,
-            assignPortsList:typing.Optional[typing.Iterable[str]]=None):
+        portName:typing.Optional[str]=None,
+        progress:typing.Optional[float]=None,
+        status:typing.Optional[str]=None,
+        assignPortsList:typing.Optional[typing.Iterable[str]]=None):
         """ """
         self.portName=portName
         self.progress=progress
@@ -48,28 +62,57 @@ class PortStatusComponent(LabelFrame):
         """
         if self._thread is None:
             self._threadExit=False
-            self.thread=threading.Thread(target=self.run)
-            self.thread.start()
+            self._thread=threading.Thread(target=self.run)
+            self._thread.start()
+
+    def _statusCB(self,status:AducStatus)->None:
+        """
+        callback from the uploader itself
+        """
+        self.status=str(status)
+    def _percentCB(self,percent:float)->None:
+        """
+        callback from the uploader itself
+        """
+        self.progress=percent
 
     def run(self):
         """
         main loop of the thread
         """
+        connection=AducConnection(port=self.name,statusCB=self._statusCB,percentCB=self._percentCB)
         while not self._threadExit:
-            time.sleep(0.1)
-            self.progress=(self.progress+random.random()/10.0)%1.0
+            try:
+                connection.waitForDevice()
+                connection.write(self.portComponents.fwAddress,self.portComponents.fwData,
+                    andVerify=True,andReset=True)
+            except Exception as e:
+                print(e)
+                status=str(e).replace('\n',' ').replace('  ',' ')
+                if len(status)>50:
+                    status=status[0:47]+'...'
+                self.status=status
+                for i in range(10):
+                    # wait for the user to be able to see that there was a problem
+                    # use the progress bar as a count-down
+                    self.progress=1.0-i/10
+                    time.sleep(1)
+                raise e
 
     def stop(self):
         """
         stop the thread
         """
-        if self.thread is not None:
+        if self._thread is not None:
             self._threadExit=True
-            self.thread.join()
-            self.thread=None
+            self._thread.join()
+            self._thread=None
 
     def _setUiStatus(self,value:str):
-            self.statusVar.set(str(value))
+        """
+        runs in the ui thread to actually update the component
+        """
+        self.statusVar.set(str(value))
 
     def getStatus(self)->str:
         """
@@ -82,7 +125,7 @@ class PortStatusComponent(LabelFrame):
         Get the status message
         """
         return self.getStatus()
-    
+
     def setStatus(self,status:str):
         """
         Set the status message
@@ -100,6 +143,9 @@ class PortStatusComponent(LabelFrame):
         self.setStatus(status)
 
     def _setUiProgress(self,progress:float):
+        """
+        runs in the ui thread to actually update the component
+        """
         self.progressControl['value']=progress*100
 
     def getProgress(self)->float:
@@ -113,7 +159,7 @@ class PortStatusComponent(LabelFrame):
         Get the progress bar progress
         """
         return self.getProgress()
-    
+
     def setProgress(self,progress:float):
         """
         Set the progress bar progress
@@ -133,13 +179,15 @@ class PortStatusComponent(LabelFrame):
 
 class PortComponents:
     """
-    Maintaine a list of PortStatusComponent controls
+    Maintain a list of PortStatusComponent controls
     """
 
     def __init__(self,root,
+        filename:typing.Optional[str]=None,
         portNames:typing.Union[None,str,typing.Iterable[str]]=None,
         ignorePorts:typing.Optional[typing.Iterable[str]]=None):
         """ """
+        self.filename=filename
         self.root=root
         if ignorePorts is None:
             ignorePorts=[]
@@ -150,6 +198,20 @@ class PortComponents:
         self._threadExit=False
         self._thread:typing.Optional[threading.Thread]=None
         self.start()
+
+    @property
+    def fwAddress(self)->int:
+        """
+        the flash location of the firmware data
+        """
+        return 0
+
+    @property
+    def fwData(self)->bytes:
+        """
+        the bytes of the firmware data
+        """
+        return bytes()
 
     def start(self):
         """
@@ -165,32 +227,19 @@ class PortComponents:
         main loop of the thread
         """
         while not self._threadExit:
-            time.sleep(5)
-            newlist=list(self._components.keys())
-            if random.random()>0.5:
-                # add a port
-                if len(newlist)<20:
-                    r=random.randint(1,10)
-                    for n in range(r,100):
-                        s=f'COM{n}'
-                        if s not in newlist:
-                            newlist.append(s)
-                            break
-            else:
-                # remove a port
-                if len(newlist)>1:
-                    newlist.pop(random.randint(0,len(newlist)))
+            newlist=[x.name for x in serial.tools.list_ports.comports()]
             msg=PortStatusMessage(assignPortsList=newlist)
             self._messageQueue.put(msg)
+            time.sleep(30)
 
     def stop(self):
         """
         stop the thread
         """
-        if self.thread is not None:
+        if self._thread is not None:
             self._threadExit=True
-            self.thread.join()
-            self.thread=None
+            self._thread.join()
+            self._thread=None
 
     def __getitem__(self,portName:str):
         return self.add(portName)
@@ -218,7 +267,7 @@ class PortComponents:
         """
         ret=[]
         if portNames is None:
-            return
+            return ret
         if isinstance(portNames,str):
             portNames=(portNames,)
         for pn in portNames:
@@ -262,8 +311,8 @@ class OctopusWindow(Tk,PortComponents):
     UI window for octopus.  Useage:
     OctopusWindow().mainloop()
     """
-    def __init__(self):
-        PortComponents.__init__(self,self)
+    def __init__(self,filename:typing.Optional[str]=None):
+        PortComponents.__init__(self,self,filename=filename)
         Tk.__init__(self)
         self.title('octopus')
         self.geometry('250x800')
@@ -288,8 +337,34 @@ class OctopusWindow(Tk,PortComponents):
         self.after(250,self._pollQueue)
 
 
-octopus=OctopusWindow()
-octopus.append("COM1")
-octopus.assign(("COM2","COM3"))
-octopus.extend(("COM4"))
-octopus.mainloop()
+def cmdline(args:typing.Iterable[str])->int:
+    """
+    Run the command line
+
+    :param args: command line arguments (WITHOUT the filename)
+    """
+    printhelp=False
+    for arg in args:
+        if arg.startswith('-'):
+            av=arg.split('=',1)
+            av[0]=av[0].lower()
+            if av[0] in ('-h','--help'):
+                printhelp=True
+            else:
+                printhelp=True
+        else:
+            filename=arg
+    if not printhelp:
+        octopus=OctopusWindow(filename=filename)
+        octopus.mainloop() # never returns
+    if printhelp:
+        print('USEAGE:')
+        print('  octopus_ui [options] [filename]')
+        print('OPTIONS:')
+        print('  -h ............... this help')
+        return 1
+    return 0
+
+if __name__=='__main__':
+    import sys
+    sys.exit(cmdline(sys.argv[1:]))

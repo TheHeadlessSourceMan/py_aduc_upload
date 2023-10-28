@@ -15,9 +15,10 @@ Or use the shortcut:
     upload('myprogram.hex','COM1',andRun=True)
 
 For more info on the protocol, see:
-    https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf    
+    https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf
 """
 import typing
+from enum import Enum, auto
 try:
     import serial
 except ImportError as e:
@@ -38,6 +39,69 @@ class AducException(Exception):
     (NOTE: most issues are dealt with by returning False from the command)
     """
 
+class AducStatus(Enum):
+    """
+    Status of a device connection
+    """
+    CONNECTING=auto()
+    PORT_IN_USE=auto()
+    WAITING_FOR_DEVICE=auto()
+    NOT_IN_FLASH_MODE=auto()
+    DEVICE_FOUND=auto()
+    ERASING=auto()
+    ERASE_FAILED=auto()
+    ERASE_SUCCEEDED=auto()
+    WRITING=auto()
+    WRITE_FAILED=auto()
+    WRITE_SUCCEEDED=auto()
+    VERIFYING=auto()
+    VERIFY_FAILED=auto()
+    VERIFY_SUCCEEDED=auto()
+    RUNNING=auto()
+    RUN_FAILED=auto()
+    RUN_SUCCEEDED=auto()
+    RESETTING=auto()
+    RESET_FAILED=auto()
+    RESET_SUCCEEDED=auto()
+    DONE=auto()
+
+StatusCB=typing.Callable[[AducStatus],None]
+PercentCB=typing.Callable[[float],None]
+
+class StdoutCB:
+    """
+    default status output (dump to stdout)
+    """
+    def __init__(self):
+        self.percent=0
+        self.status=""
+        self.last=""
+    def statusCB(self,status:AducStatus)->None:
+        """
+        Callback for a status state change
+        """
+        self.status=status
+        current=str(self)
+        if current!=self.last:
+            print(current,end="")
+            self.last=current
+    def percentCB(self,percent:float)->None:
+        """
+        Callback for a percent complete change
+        """
+        self.percent=percent
+        current=str(self)
+        if current!=self.last:
+            print(current,end="")
+            self.last=current
+    def __repr__(self):
+        width=50
+        full=int(width*self.percent)
+        statusbar='#'*full+'_'*(width-full)
+        return f'\r[{statusbar}] {self.status}'
+stdoutCB=StdoutCB()
+
+
 class AducConnection:
     """
     Python interface to the serial uploader for Analog Devices ADuC70xx family of devices.
@@ -53,7 +117,7 @@ class AducConnection:
             ac.run()
     Or use the shortcut:
         upload('myprogram.hex','COM1',andRun=True)
-    
+
     For more info on the protocol, see:
         https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf
     """
@@ -65,7 +129,10 @@ class AducConnection:
         parity:str='N',
         stopbits:float=1,
         xonxoff:int=0,
-        rtscts:int=0):
+        rtscts:int=0,
+        statusCB:StatusCB=stdoutCB.statusCB,
+        percentCB:PercentCB=stdoutCB.percentCB
+        ):
         """ """
         self.port:str=port
         self.baudrate=baudrate
@@ -80,6 +147,8 @@ class AducConnection:
         # According to AN-724 you can send up to 250 bytes per packet,
         # but ARMWSD.exe only sends 16 for some reason
         self.bytesPerWritePacket=16
+        self.statusCB:StatusCB=statusCB
+        self.percentCB:PercentCB=percentCB
         self._connection:typing.Optional[serial.Serial]=None
         self._connectionEstablished=False
 
@@ -88,6 +157,8 @@ class AducConnection:
         connect the serial port (called automatically as needed)
         """
         if not self._connection:
+            self.statusCB(AducStatus.CONNECTING)
+            self.percentCB(0)
             self._connection=serial.Serial(
                 self.port,self.baudrate,self.bytesize,self.parity,
                 self.stopbits,self.timeout,self.xonxoff,self.rtscts)
@@ -115,21 +186,22 @@ class AducConnection:
         """
         return bytes([0xFF&(0-sum(data))])
 
-    def waitForConnection(self)->bool:
+    def waitForDevice(self)->bool:
         """
         Wait for an actual device to respond on the serial port
         """
         if self._connectionEstablished:
             return True
         ser=self.connect()
-        print('Wait for connection...')
+        self.statusCB(AducStatus.WAITING_FOR_DEVICE)
+        self.percentCB(0)
         response=bytes()
         while not response:
             ser.write(bytes([0x08])) # send backspaces
             response=ser.read(24) # until it responds with its id
             if response and response[0] in (0x07,0x80):
-                print('\n****************************\nDevice detected, but not in flash mode.\nPlease reboot in flash mode!\n****************************\n')
-        print('  OK! Connected to device:',response.decode('ascii').strip())
+                self.statusCB(AducStatus.NOT_IN_FLASH_MODE)
+        self.statusCB(AducStatus.DEVICE_FOUND)
         self._connectionEstablished=True
         return True
 
@@ -169,10 +241,8 @@ class AducConnection:
         while not response:
             response=ser.read(1)
         if response[0]==0x06: # device responded with success
-            print('.',end='')
             return True
         if response[0]==0x07: # device responded with fail
-            print('X',end='')
             return False
         raise AducException(f'Unexpected serial response: {hex(response[0])}')
 
@@ -182,6 +252,8 @@ class AducConnection:
         """
         ret=False
         if numPages<1 or numPages>124:
+            if numPages==0:
+                return True # because, sure, I erased zero pages.
             raise AducException('numPages must be 1..124 (%d given)'%numPages)
         ret=self._sendPacket('E',address,numPages.to_bytes(1,byteorder='little',signed=False))
         return ret
@@ -191,12 +263,13 @@ class AducConnection:
         Erase flash starting at address and ending at address+numBytes
         (will always round up to erase entire pages)
         """
-        print(f'Erasing {numBytes} bytes at {hex(address)}...',end='')
+        self.statusCB(AducStatus.ERASING)
         ret=self._erasePacket(address,numBytes//self.pageSize)
-        if ret:
-            print('OK')
+        if not ret:
+            self.statusCB(AducStatus.ERASE_FAILED)
         else:
-            print('FAIL')
+            self.statusCB(AducStatus.ERASE_SUCCEEDED)
+            self.percentCB(1.0)
         return ret
 
     def _writePacket(self,address:int,data:bytes)->bool:
@@ -204,19 +277,13 @@ class AducConnection:
         Send a write packet to the device
         """
         ret=False
-        print(f'Write {len(data)} bytes to {hex(address)}...',end='')
         for _ in range(self.numTries):
             ret=self._sendPacket('W',address,data)
             if ret:
                 break
-        if ret:
-            print('OK')
-        else:
-            print('FAIL')
         return ret
 
     def write(self,address:int,data:bytes,
-        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
         andVerify=True,andRun=False,andReset=False
         )->bool:
         """
@@ -231,26 +298,24 @@ class AducConnection:
         total=len(data)
         weConnected=self._connectionEstablished is False
         if weConnected:
-            self.waitForConnection()
+            self.waitForDevice()
         self.erase(address,total)
+        self.statusCB(AducStatus.WRITING)
+        self.percentCB(0.0)
         while complete<total:
             numWritten=min(total-complete,self.bytesPerWritePacket)
             chunk=data[complete:complete+numWritten]
             ret=self._writePacket(address,chunk)
             if not ret:
+                self.statusCB(AducStatus.WRITE_FAILED)
                 return ret
+            self.percentCB(complete/total)
             complete+=numWritten
             address+=numWritten
-            if progressCB is not None:
-                pct=complete/total
-                if andVerify:
-                    pct*=0.66
-                progressCB(pct)
+        self.statusCB(AducStatus.WRITE_SUCCEEDED)
+        self.percentCB(1.0)
         if andVerify:
-            def pcb(pct:float):
-                if progressCB is not None:
-                    progressCB(0.66+0.33*pct)
-            ret=self.verify(startAddress,data,pcb)
+            ret=self.verify(startAddress,data)
         if andRun:
             self.run()
         elif andReset:
@@ -262,14 +327,13 @@ class AducConnection:
 
     def upload(self,
         filename:str,
-        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
         andVerify=True,andRun=False,andReset=False
         )->bool:
         """
         Upload an intel hex file(.hex) or a binary file (.bin) to the device
         """
         ihex=intelhex.IntelHex(filename)
-        return self.uploadIhex(ihex,progressCB,andVerify,andRun,andReset)
+        return self.uploadIhex(ihex,andVerify,andRun,andReset)
 
     def _looksLikeIhex(self,data:bytes)->bool:
         """
@@ -285,7 +349,6 @@ class AducConnection:
 
     def uploadData(self,
         data:bytes,decodeAsIhex:typing.Optional[bool]=None,
-        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
         andVerify=True,andRun=False,andReset=False)->bool:
         """
         Upload raw data or intel hex data to the device
@@ -301,31 +364,32 @@ class AducConnection:
         else:
             ihex=intelhex.IntelHex()
             ihex.frombytes(data)
-        return self.uploadIhex(ihex,progressCB,andVerify,andRun,andReset)
+        return self.uploadIhex(ihex,andVerify,andRun,andReset)
 
     def uploadIhex(self,
         ihex:intelhex.IntelHex,
-        progressCB:typing.Optional[typing.Callable[[float],None]]=None,
         andVerify=True,andRun=False,andReset=False
         )->bool:
         """
         Upload an intel hex object to the device
         """
         ret=True
-        self.waitForConnection()
+        self.waitForDevice()
         totalbytes=0
         for start,stop in ihex.segments():
             totalbytes+=stop-start
         uploaded=0
         for start,stop in ihex.segments():
             amt=stop-start
-            def progcb(pct:float):
-                if progressCB is not None:
-                    progressCB((uploaded+pct*amt)/totalbytes)
-            ret=self.write(start,ihex.tobinarray(start,stop),progcb,andVerify,andRun,andReset)
+            # wait until after this loop to do run/reset in case there is more than 1 segment
+            ret=self.write(start,ihex.tobinarray(start,stop),andVerify,False,False)
             if not ret:
                 break
             uploaded+=amt
+        if andRun:
+            self.run()
+        elif andReset:
+            self.reset()
         self._connectionEstablished=False
         return ret
     uploadBytes=uploadData
@@ -335,15 +399,10 @@ class AducConnection:
         Send a verify packet to the device
         """
         ret=False
-        print(f'Verify {len(data)} bytes at {hex(address)}...',end='')
         for _ in range(self.numTries):
             ret=self._sendPacket('V',address,data)
             if ret:
                 break
-        if ret:
-            print('OK')
-        else:
-            print('FAIL')
         return ret
 
     def _verifyShift(self,data:bytes)->bytes:
@@ -354,8 +413,7 @@ class AducConnection:
 
     def verify(self,
         address:int,
-        data:bytes,
-        progressCB:typing.Optional[typing.Callable[[float],None]]=None
+        data:bytes
         )->bool:
         """
         Verify some data
@@ -366,21 +424,24 @@ class AducConnection:
         total=len(data)
         weConnected=self._connectionEstablished is False
         if weConnected:
-            self.waitForConnection()
+            self.waitForDevice()
+        self.statusCB(AducStatus.VERIFYING)
+        self.percentCB(0.0)
         while complete<total:
             numVerified=min(total-complete,self.bytesPerWritePacket)
             chunk=data[complete:complete+numVerified]
             ret=self._verifyPacket(address,chunk)
             if not ret:
+                self.statusCB(AducStatus.VERIFY_FAILED)
                 return ret
             complete+=numVerified
             address+=numVerified
-            if progressCB is not None:
-                pct=complete/total
-                progressCB(pct)
+            self.percentCB(complete/total)
         if weConnected:
             self.disconnect()
             self._connectionEstablished=False
+        self.statusCB(AducStatus.VERIFY_SUCCEEDED)
+        self.percentCB(1.0)
         return ret
 
     def _runPacket(self,address:int)->bool:
@@ -398,24 +459,28 @@ class AducConnection:
         """
         Run the program by jumping to the start address
         """
-        print('Running...',end='')
+        self.statusCB(AducStatus.RUNNING)
+        self.percentCB(0.0)
         ret=self._runPacket(0)
         if ret:
-            print('OK')
+            self.statusCB(AducStatus.RUN_SUCCEEDED)
+            self.percentCB(1.0)
         else:
-            print('FAIL')
+            self.statusCB(AducStatus.RUN_FAILED)
         return ret
 
     def reset(self)->bool:
         """
         Run the program by causing a reset
         """
-        print('Resetting...',end='')
+        self.statusCB(AducStatus.RESETTING)
+        self.percentCB(0.0)
         ret=self._runPacket(1)
         if ret:
-            print('OK')
+            self.statusCB(AducStatus.RESET_SUCCEEDED)
+            self.percentCB(1.0)
         else:
-            print('FAIL')
+            self.statusCB(AducStatus.RESET_FAILED)
         return ret
 
 
@@ -468,20 +533,14 @@ def cmdline(args:typing.Iterable[str])->int:
         else:
             filename=arg
     if not printhelp and filename and port:
-        def progressCB(pct:float):
-            WIDTH=78
-            blocks=int(pct*WIDTH)
-            filled='#'*blocks
-            empty='_'*(WIDTH-blocks)
-            #print(f'\r[{filled}{empty}]')
         print()
         if filename=='STDIN':
             data=sys.stdin.read().encode('ascii')
             worked = AducConnection(port).uploadBytes(data,
-                progressCB=progressCB,andVerify=andVerify,andRun=andRun,andReset=andReset)
+                andVerify=andVerify,andRun=andRun,andReset=andReset)
         else:
             worked = AducConnection(port).upload(filename,
-                progressCB=progressCB,andVerify=andVerify,andRun=andRun,andReset=andReset)
+                andVerify=andVerify,andRun=andRun,andReset=andReset)
         didSomething=True
     if printhelp or not didSomething:
         print('USEAGE:')
