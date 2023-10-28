@@ -18,6 +18,8 @@ For more info on the protocol, see:
     https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf
 """
 import typing
+import os
+import subprocess
 from enum import Enum, auto
 try:
     import serial
@@ -81,7 +83,7 @@ class StdoutCB:
         Callback for a status state change
         """
         self.status=status
-        current=str(self)
+        current=str(self)+' '*20
         if current!=self.last:
             print(current,end="")
             self.last=current
@@ -90,7 +92,7 @@ class StdoutCB:
         Callback for a percent complete change
         """
         self.percent=percent
-        current=str(self)
+        current=str(self)+' '*20
         if current!=self.last:
             print(current,end="")
             self.last=current
@@ -325,19 +327,34 @@ class AducConnection:
             self._connectionEstablished=False
         return ret
 
+    def _elfFileToIhexFile(self,filename:str)->str:
+        ihexFilename=filename.rsplit('.',1)[0]+'.hex'
+        if not os.path.exists(ihexFilename) or os.path.getmtime(filename)>os.path.getmtime(ihexFilename):
+            # (re)generate the ihexFilename file
+            cmd=['objcopy','-S','-O','ihex',filename,ihexFilename]
+            po=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            _,err=po.communicate()
+            err=err.decode('utf-8',errors='ignore').strip()
+            if err:
+                raise AducException('Error converting .elf to .hex: '+err)
+        return ihexFilename
+
     def upload(self,
         filename:str,
         andVerify=True,andRun=False,andReset=False
         )->bool:
         """
-        Upload an intel hex file(.hex) or a binary file (.bin) to the device
+        Upload an intel hex file(.hex), elf linker output (.elf) or a binary file (.bin) to the device
         """
+        extn=filename.rsplit('.',1)[-1].lower()
+        if extn=='elf':
+            filename=self._elfFileToIhexFile(filename)
         ihex=intelhex.IntelHex(filename)
         return self.uploadIhex(ihex,andVerify,andRun,andReset)
 
     def _looksLikeIhex(self,data:bytes)->bool:
         """
-        determine if the data looks like intel hex format or binary bytes
+        determine if the data looks like intel hex format
         """
         if len(data)>=10:
             asc=data[0:10].decode('ascii')
@@ -346,21 +363,39 @@ class AducConnection:
                 if re.match(r':[0-9A-Fa-f]{2}\s+[[0-9A-Fa-f]{4,99}',asc) is not None:
                     return True
         return False
+    
+    def _looksLikeElf(self,data:bytes)->bool:
+        """
+        determine if the data looks like elf format
+        """
+        if len(data)>=4:
+            asc=data[1:4].decode('ascii')
+            return asc==b'ELF'
+        return False
 
     def uploadData(self,
-        data:bytes,decodeAsIhex:typing.Optional[bool]=None,
+        data:bytes,decodeAs:typing.Optional[str]=None,
         andVerify=True,andRun=False,andReset=False)->bool:
         """
         Upload raw data or intel hex data to the device
 
-        :decodeAsIhex: whether to decode as intel hex format or as raw bytes
+        :decodeAs: whether to decode as 'ihex' (intel hex) format, 'elf', or as 'raw' bytes
             if not specified, will try to guess based upon the file contents
         """
-        if decodeAsIhex is None:
-            decodeAsIhex=self._looksLikeIhex(data)
-        if decodeAsIhex:
+        if decodeAs is None:
+            if self._looksLikeIhex(data):
+                decodeAs='ihex'
+            elif self._looksLikeElf(data):
+                decodeAs='elf'
+            else:
+                decodeAs='raw'
+        else:
+            decodeAs=decodeAs.lower()
+        if decodeAs in ('ihex','hex'):
             ihex=intelhex.IntelHex()
             raise NotImplementedError("Need to use stringio here")
+        elif decodeAs=='elf':
+            raise NotImplementedError("decode elf bytes!")
         else:
             ihex=intelhex.IntelHex()
             ihex.frombytes(data)
@@ -552,12 +587,13 @@ def cmdline(args:typing.Iterable[str])->int:
         print('  --reset[=t/f]  ... reset device after uploading (default = f)')
         print('  --verify[=t/f]  .. verify after uploading (default = t)')
         print('FILENAME:')
+        print('  accepts .hex, .elf, and .bin')
         print('  If the filename is STDIN it will read the file bytes from standard i/o')
         return 1
     if worked:
-        print('SUCCESS')
+        print('\nSUCCESS')
         return 0
-    print('FAIL')
+    print('\nFAIL')
     return -1
 
 
