@@ -10,6 +10,7 @@ import time
 from tkinter import *
 from tkinter.ttk import *
 from aduc_upload import AducConnection,AducStatus
+import intelhex
 try:
     import serial
     import serial.tools.list_ports
@@ -56,6 +57,10 @@ class PortStatusComponent(LabelFrame):
         self._thread:typing.Optional[threading.Thread]=None
         self.start()
 
+    @property
+    def ihex(self)->intelhex.IntelHex:
+        return self.portComponents.ihex
+
     def start(self):
         """
         Start the thread (called automatically on creation)
@@ -83,9 +88,7 @@ class PortStatusComponent(LabelFrame):
         connection=AducConnection(port=self.name,statusCB=self._statusCB,percentCB=self._percentCB)
         while not self._threadExit:
             try:
-                connection.waitForDevice()
-                connection.write(self.portComponents.fwAddress,self.portComponents.fwData,
-                    andVerify=True,andReset=True)
+                connection.uploadIhex(self.ihex,andVerify=True,andReset=True)
             except Exception as e:
                 print(e)
                 status=str(e).replace('\n',' ').replace('  ',' ')
@@ -192,26 +195,35 @@ class PortComponents:
         if ignorePorts is None:
             ignorePorts=[]
         self.ignorePorts=list(ignorePorts)
+        self._ihex:typing.Optional[intelhex.IntelHex]=None
+        self._lastFileReadTimestamp:typing.Optional[typing.Any]=None
+        self._lastFileReadSize:typing.Optional[typing.Any]=None
         self._components:typing.Dict[str,PortStatusComponent]={}
         self._messageQueue:queue.Queue[PortStatusMessage]=queue.Queue[PortStatusMessage]()
         self.extend(portNames)
         self._threadExit=False
         self._thread:typing.Optional[threading.Thread]=None
         self.start()
-
+    
     @property
-    def fwAddress(self)->int:
+    def ihex(self)->intelhex.IntelHex:
         """
-        the flash location of the firmware data
-        """
-        return 0
+        hex data
 
-    @property
-    def fwData(self)->bytes:
+        Will keep an eye on the file filename and re-update what this returns
+        if the file changes!
+
+        WARNING: if relying on auto-converting a .elf, this may not downgrade
+            versions properly.  Use .hex files if you want to downgrade versions! 
         """
-        the bytes of the firmware data
-        """
-        return bytes()
+        timestamp=os.path.getmtime(self.filename)
+        size=os.path.getsize(self.filename)
+        if self._ihex is None or self._lastFileReadTimestamp!=timestamp or size!=self._lastFileReadSize:
+            tmpConn=AducConnection()
+            self._ihex=tmpConn.loadIhex(self.filename)
+            self._lastFileReadSize=size
+            self._lastFileReadTimestamp=timestamp
+        return self._ihex
 
     def start(self):
         """
@@ -320,6 +332,9 @@ class OctopusWindow(Tk,PortComponents):
         self._pollQueue()
 
     def _pollQueue(self):
+        """
+        grab things from the message queue and update the ui as necessary
+        """
         try:
             while True:
                 msg:PortStatusMessage=self._messageQueue.get_nowait()
@@ -330,9 +345,8 @@ class OctopusWindow(Tk,PortComponents):
                         self._components[msg.portName]._setUiProgress(msg.progress)
                     if msg.status is not None:
                         self._components[msg.portName]._setUiStatus(msg.status)
-        except Exception as e:
-            if not isinstance(e,queue.Empty):
-                raise e
+        except queue.Empty:
+            pass # it took us out of the loop, so it did its job
         # run again in a quarter second
         self.after(250,self._pollQueue)
 
