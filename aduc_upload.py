@@ -20,6 +20,7 @@ For more info on the protocol, see:
 import typing
 import os
 import subprocess
+from math import ceil
 from enum import Enum, auto
 try:
     import serial
@@ -266,7 +267,7 @@ class AducConnection:
         (will always round up to erase entire pages)
         """
         self.statusCB(AducStatus.ERASING)
-        ret=self._erasePacket(address,numBytes//self.pageSize)
+        ret=self._erasePacket(address,ceil(numBytes/self.pageSize))
         if not ret:
             self.statusCB(AducStatus.ERASE_FAILED)
         else:
@@ -298,6 +299,9 @@ class AducConnection:
         ret=True
         complete=0
         total=len(data)
+        if total<=0:
+            raise AducException("No data given!")
+        print(f"Uploading {total} bytes ({ceil(total/self.pageSize)} pages)")
         weConnected=self._connectionEstablished is False
         if weConnected:
             self.waitForDevice()
@@ -307,6 +311,8 @@ class AducConnection:
         while complete<total:
             numWritten=min(total-complete,self.bytesPerWritePacket)
             chunk=data[complete:complete+numWritten]
+            while len(chunk)<self.bytesPerWritePacket:
+                chunk.append(0x00)
             ret=self._writePacket(address,chunk)
             if not ret:
                 self.statusCB(AducStatus.WRITE_FAILED)
@@ -328,6 +334,9 @@ class AducConnection:
         return ret
 
     def _elfFileToIhexFile(self,filename:str)->str:
+        """
+        Convert a .elf file into a .hex file
+        """
         ihexFilename=filename.rsplit('.',1)[0]+'.hex'
         if not os.path.exists(ihexFilename) or os.path.getmtime(filename)>os.path.getmtime(ihexFilename):
             # (re)generate the ihexFilename file
@@ -339,17 +348,24 @@ class AducConnection:
                 raise AducException('Error converting .elf to .hex: '+err)
         return ihexFilename
 
+    def loadIhex(self,filename:str)->intelhex.IntelHex:
+        """
+        Load an intel .hex file
+        """
+        extn=filename.rsplit('.',1)[-1].lower()
+        if extn=='elf':
+            filename=self._elfFileToIhexFile(filename)
+        return intelhex.IntelHex(filename)
+
     def upload(self,
         filename:str,
         andVerify=True,andRun=False,andReset=False
         )->bool:
         """
-        Upload an intel hex file(.hex), elf linker output (.elf) or a binary file (.bin) to the device
+        Upload an intel hex file(.hex), elf linker output (.elf) or
+        a binary file (.bin) to the device
         """
-        extn=filename.rsplit('.',1)[-1].lower()
-        if extn=='elf':
-            filename=self._elfFileToIhexFile(filename)
-        ihex=intelhex.IntelHex(filename)
+        ihex=self.loadIhex(filename)
         return self.uploadIhex(ihex,andVerify,andRun,andReset)
 
     def _looksLikeIhex(self,data:bytes)->bool:
@@ -363,7 +379,7 @@ class AducConnection:
                 if re.match(r':[0-9A-Fa-f]{2}\s+[[0-9A-Fa-f]{4,99}',asc) is not None:
                     return True
         return False
-    
+
     def _looksLikeElf(self,data:bytes)->bool:
         """
         determine if the data looks like elf format
@@ -421,10 +437,11 @@ class AducConnection:
             if not ret:
                 break
             uploaded+=amt
-        if andRun:
-            self.run()
-        elif andReset:
-            self.reset()
+        if ret:
+            if andRun:
+                ret=self.run()
+            elif andReset:
+                ret=self.reset()
         self._connectionEstablished=False
         return ret
     uploadBytes=uploadData
