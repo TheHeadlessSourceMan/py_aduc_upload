@@ -1,0 +1,51 @@
+[build-system]
+requires = [
+    "setuptools >= 65",
+    "wheel >= 0.38",]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py_aduc_upload"
+version = "0.0.1"
+authors = [
+  { name="TheHeadlessSourceMan", email="theheadlesssourceman@gmail.com" },
+]
+description = "Python interface to the serial uploader for Analog Devices ADuC70xx family of devices."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pyserial",
+    "intelhex",
+]
+scripts = {
+    aduc_upload = "py_aduc_upload.aduc_upload:cmdline",
+    py_aduc_upload = "py_aduc_upload.aduc_upload:cmdline",
+    octopus = "py_aduc_upload.octopus_ui:cmdline",
+    octopus_ui = "py_aduc_upload.octopus_ui:cmdline",
+}
+
+[project.optional-dependencies]
+test = [
+    "pytest >= 5.0.0",
+]
+doc = [
+    "sphinx",
+]
+
+[project.urls]
+Homepage = "https://github.com/TheHeadlessSourceMan/py_aduc_upload"
+Issues = "https://github.com/TheHeadlessSourceMan/py_aduc_upload/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [ "py_aduc_upload"]
+exclude = ["py_aduc_upload.tests*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.ico"]
