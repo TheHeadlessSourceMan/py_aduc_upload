@@ -60,6 +60,10 @@ class PortStatusComponent(LabelFrame):
     @property
     def ihex(self)->intelhex.IntelHex:
         return self.portComponents.ihex
+    
+    @property
+    def postRun(self)->str:
+        return self.portComponents.postRun
 
     def start(self):
         """
@@ -88,7 +92,7 @@ class PortStatusComponent(LabelFrame):
         connection=AducConnection(port=self.name,statusCB=self._statusCB,percentCB=self._percentCB)
         while not self._threadExit:
             try:
-                connection.uploadIhex(self.ihex,andVerify=True,andReset=True)
+                connection.uploadIhex(self.ihex,andVerify=True,andReset=True,postRun=self.postRun)
             except Exception as e:
                 print(e)
                 status=str(e).replace('\n',' ').replace('  ',' ')
@@ -133,7 +137,15 @@ class PortStatusComponent(LabelFrame):
         """
         Set the status message
         """
-        status=str(status)
+        sw=[]
+        for word in str(status).rsplit('.',1)[-1].split('_'):
+            if not sw:
+                sw.append(word[0].upper()+word[1:].lower())
+            elif word in ("SUCCESS","FAIL","DONE"):
+                sw.append(word)
+            else:
+                sw.append(word.lower())
+        status=' '.join([sw])
         if self._status!=status:
             self._status=status
             msg=PortStatusMessage(self.name,status=status)
@@ -187,9 +199,11 @@ class PortComponents:
 
     def __init__(self,root,
         filename:typing.Optional[str]=None,
+        postRun:str="",
         portNames:typing.Union[None,str,typing.Iterable[str]]=None,
         ignorePorts:typing.Optional[typing.Iterable[str]]=None):
         """ """
+        self.postRun=postRun
         self.filename=filename
         self.root=root
         if ignorePorts is None:
@@ -323,8 +337,12 @@ class OctopusWindow(Tk,PortComponents):
     UI window for octopus.  Useage:
     OctopusWindow().mainloop()
     """
-    def __init__(self,filename:typing.Optional[str]=None):
-        PortComponents.__init__(self,self,filename=filename)
+    def __init__(self,
+        filename:typing.Optional[str]=None,
+        postRun:str="",
+        ignorePorts:typing.Optional[typing.Iterable[str]]=None):
+        """ """
+        PortComponents.__init__(self,self,filename=filename,postRun=postRun,ignorePorts=ignorePorts)
         Tk.__init__(self)
         self.title('octopus')
         self.geometry('250x800')
@@ -358,24 +376,33 @@ def cmdline(args:typing.Iterable[str])->int:
     :param args: command line arguments (WITHOUT the filename)
     """
     printhelp=False
+    postRun=''
+    ignorePorts:typing.List[str]=[]
     for arg in args:
         if arg.startswith('-'):
             av=arg.split('=',1)
             av[0]=av[0].lower()
             if av[0] in ('-h','--help'):
                 printhelp=True
+            elif av[0]=='--postrun':
+                postRun=av[1]
+            if av[0] in ('--ignore','--ignoreports'):
+                ignorePorts.extend(av[1].replace(' ','').split(','))
             else:
                 printhelp=True
         else:
             filename=arg
     if not printhelp:
-        octopus=OctopusWindow(filename=filename)
+        octopus=OctopusWindow(filename=filename,postRun=postRun,ignorePorts=ignorePorts)
         octopus.mainloop() # never returns
     if printhelp:
         print('USEAGE:')
         print('  octopus_ui [options] [filename]')
         print('OPTIONS:')
-        print('  -h ............... this help')
+        print('  -h ............................. this help')
+        print('  --postRun="shell command"  ..... run a shell command after the upload')
+        print('  --ignore=port[,port,...] ....... ignore checking on certain com ports')
+        print('  --ignorePorts=port[,port,...] .. ignore checking on certain com ports')
         return 1
     return 0
 

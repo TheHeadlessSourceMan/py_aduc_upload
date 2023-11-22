@@ -66,6 +66,9 @@ class AducStatus(Enum):
     RESETTING=auto()
     RESET_FAILED=auto()
     RESET_SUCCEEDED=auto()
+    POST_STEP=auto()
+    POST_STEP_SUCCEEDED=auto()
+    POST_STEP_FAILED=auto()
     DONE=auto()
 
 StatusCB=typing.Callable[[AducStatus],None]
@@ -77,13 +80,13 @@ class StdoutCB:
     """
     def __init__(self):
         self.percent=0
-        self.status=""
-        self.last=""
+        self.status:str=""
+        self.last:str=""
     def statusCB(self,status:AducStatus)->None:
         """
         Callback for a status state change
         """
-        self.status=status
+        self.status=' '.join([word.lower() for word in str(status).rsplit('.',1)[-1].split('_')])
         current=str(self)+' '*20
         if current!=self.last:
             print(current,end="")
@@ -359,14 +362,15 @@ class AducConnection:
 
     def upload(self,
         filename:str,
-        andVerify=True,andRun=False,andReset=False
+        andVerify:bool=True,andRun:bool=False,andReset:bool=False,
+        postRun:typing.Optional[str]=None
         )->bool:
         """
         Upload an intel hex file(.hex), elf linker output (.elf) or
         a binary file (.bin) to the device
         """
         ihex=self.loadIhex(filename)
-        return self.uploadIhex(ihex,andVerify,andRun,andReset)
+        return self.uploadIhex(ihex,andVerify,andRun,andReset,postRun)
 
     def _looksLikeIhex(self,data:bytes)->bool:
         """
@@ -419,12 +423,17 @@ class AducConnection:
 
     def uploadIhex(self,
         ihex:intelhex.IntelHex,
-        andVerify=True,andRun=False,andReset=False
+        andVerify:bool=True,andRun:bool=False,andReset:bool=False,
+        postRun:typing.Optional[str]=None
         )->bool:
         """
         Upload an intel hex object to the device
         """
         ret=True
+        if postRun is not None:
+            postRun=postRun.strip()
+            if not postRun:
+                postRun=None
         self.waitForDevice()
         totalbytes=0
         for start,stop in ihex.segments():
@@ -442,7 +451,21 @@ class AducConnection:
                 ret=self.run()
             elif andReset:
                 ret=self.reset()
-        self._connectionEstablished=False
+            # we resetted, so don't consider firmware update mode "connected" anymore
+            self._connectionEstablished=False
+        if ret and (postRun is not None):
+            # run whatever the postRun shell command is
+            self.statusCB(AducStatus.POST_STEP)
+            self.percentCB(0.0)
+            po=subprocess.Popen(postRun,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            out,_=po.communicate()
+            print(out.decode('utf-8',errors='ignore').strip())
+            ret=po.returncode!=0
+            if ret:
+                self.statusCB(AducStatus.POST_STEP_SUCCEEDED)
+                self.percentCB(1.0)
+            else:
+                self.statusCB(AducStatus.POST_STEP_FAILED)
         return ret
     uploadBytes=uploadData
 
@@ -566,6 +589,7 @@ def cmdline(args:typing.Iterable[str])->int:
     andRun=False
     andReset=False
     worked=False
+    postRun=None
     for arg in args:
         if arg.startswith('-'):
             av=arg.split('=',1)
@@ -580,6 +604,8 @@ def cmdline(args:typing.Iterable[str])->int:
                 andRun=len(av)<2 or av[1][0].lower() in ('t','y','1')
             elif av[0]=='--reset':
                 andReset=len(av)<2 or av[1][0].lower() in ('t','y','1')
+            elif av[0]=='--thenrun':
+                postRun=av[1].strip()
             else:
                 printhelp=True
         else:
@@ -592,7 +618,7 @@ def cmdline(args:typing.Iterable[str])->int:
                 andVerify=andVerify,andRun=andRun,andReset=andReset)
         else:
             worked = AducConnection(port).upload(filename,
-                andVerify=andVerify,andRun=andRun,andReset=andReset)
+                andVerify=andVerify,andRun=andRun,andReset=andReset,postRun=postRun)
         didSomething=True
     if printhelp or not didSomething:
         print('USEAGE:')
@@ -603,6 +629,7 @@ def cmdline(args:typing.Iterable[str])->int:
         print('  --run[=t/f]  ..... auto-run after uploading (default = f)')
         print('  --reset[=t/f]  ... reset device after uploading (default = f)')
         print('  --verify[=t/f]  .. verify after uploading (default = t)')
+        print('  --postRun="shell command"  .. run a shell command after the upload')
         print('FILENAME:')
         print('  accepts .hex, .elf, and .bin')
         print('  If the filename is STDIN it will read the file bytes from standard i/o')
