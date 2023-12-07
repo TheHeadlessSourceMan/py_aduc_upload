@@ -145,7 +145,7 @@ class PortStatusComponent(LabelFrame):
                 sw.append(word)
             else:
                 sw.append(word.lower())
-        status=' '.join([sw])
+        status=' '.join(sw)
         if self._status!=status:
             self._status=status
             msg=PortStatusMessage(self.name,status=status)
