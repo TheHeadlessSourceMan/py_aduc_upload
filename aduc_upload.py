@@ -290,7 +290,7 @@ class AducConnection:
         return ret
 
     def write(self,address:int,data:bytes,
-        andVerify=True,andRun=False,andReset=False
+        andVerify=True,andRun=False,andReset=False,noErase=False
         )->bool:
         """
         Write some data to the device.
@@ -308,7 +308,8 @@ class AducConnection:
         weConnected=self._connectionEstablished is False
         if weConnected:
             self.waitForDevice()
-        self.erase(address,total)
+        if not noErase:
+            self.erase(address,total)
         self.statusCB(AducStatus.WRITING)
         self.percentCB(0.0)
         while complete<total:
@@ -438,11 +439,15 @@ class AducConnection:
         totalbytes=0
         for start,stop in ihex.segments():
             totalbytes+=stop-start
+        # erase
+        for start,stop in ihex.segments():
+            self.erase(start,stop-start)
+        # write
         uploaded=0
         for start,stop in ihex.segments():
             amt=stop-start
             # wait until after this loop to do run/reset in case there is more than 1 segment
-            ret=self.write(start,ihex.tobinarray(start,stop),andVerify,False,False)
+            ret=self.write(start,ihex.tobinarray(start,stop),andVerify,False,False,noErase=True)
             if not ret:
                 break
             uploaded+=amt
@@ -639,7 +644,6 @@ def cmdline(args:typing.Iterable[str])->int:
         return 0
     print('\nFAIL')
     return -1
-
 
 if __name__=='__main__':
     import sys
