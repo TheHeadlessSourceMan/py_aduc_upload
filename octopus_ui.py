@@ -46,10 +46,10 @@ class PortStatusComponent(LabelFrame):
         LabelFrame.__init__(self,root,text=portName,padding=5)
         self.statusVar=StringVar(root,'Initializing...')
         self.statusControl=Label(self,textvariable=self.statusVar)
-        self.statusControl.pack(expand='yes', fill='x')
+        self.statusControl.pack(expand=True, fill='x')
         self.progressControl=Progressbar(self,length=100)
         self.progressControl.pack(expand='yes', fill='x')
-        self.pack(expand='no', fill='both')
+        #self.pack(expand='yes', fill='x')
         self._progress=0.0
         self._status=''
         self.portComponents=portComponents
@@ -60,7 +60,7 @@ class PortStatusComponent(LabelFrame):
     @property
     def ihex(self)->intelhex.IntelHex:
         return self.portComponents.ihex
-    
+
     @property
     def postRun(self)->str:
         return self.portComponents.postRun
@@ -104,7 +104,7 @@ class PortStatusComponent(LabelFrame):
                     # use the progress bar as a count-down
                     self.progress=1.0-i/10
                     time.sleep(1)
-                raise e
+                #raise e
 
     def stop(self):
         """
@@ -137,18 +137,9 @@ class PortStatusComponent(LabelFrame):
         """
         Set the status message
         """
-        sw=[]
-        for word in str(status).rsplit('.',1)[-1].split('_'):
-            if not sw:
-                sw.append(word[0].upper()+word[1:].lower())
-            elif word in ("SUCCESS","FAIL","DONE"):
-                sw.append(word)
-            else:
-                sw.append(word.lower())
-        status=' '.join(sw)
         if self._status!=status:
             self._status=status
-            msg=PortStatusMessage(self.name,status=status)
+            msg=PortStatusMessage(self.name,status=str(status))
             self.portComponents._messageQueue.put(msg)
     @status.setter
     def status(self,status:str):
@@ -218,7 +209,7 @@ class PortComponents:
         self._threadExit=False
         self._thread:typing.Optional[threading.Thread]=None
         self.start()
-    
+
     @property
     def ihex(self)->intelhex.IntelHex:
         """
@@ -228,7 +219,7 @@ class PortComponents:
         if the file changes!
 
         WARNING: if relying on auto-converting a .elf, this may not downgrade
-            versions properly.  Use .hex files if you want to downgrade versions! 
+            versions properly.  Use .hex files if you want to downgrade versions!
         """
         timestamp=os.path.getmtime(self.filename)
         size=os.path.getsize(self.filename)
