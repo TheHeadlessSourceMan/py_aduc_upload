@@ -613,7 +613,7 @@ def cmdline(args:typing.Iterable[str])->int:
     andVerify=True
     andRun=False
     andReset=False
-    worked=False
+    worked=True
     postRun=None
     massEraseFirst=False
     for arg in args:
@@ -642,14 +642,15 @@ def cmdline(args:typing.Iterable[str])->int:
         print()
         aduc=AducConnection(port)
         if massEraseFirst:
-            aduc.massErase()
-        if filename=='STDIN':
-            data=sys.stdin.read().encode('ascii')
-            worked = aduc.uploadBytes(data,
-                andVerify=andVerify,andRun=andRun,andReset=andReset)
-        elif filename:
-            worked = aduc.upload(filename,
-                andVerify=andVerify,andRun=andRun,andReset=andReset,postRun=postRun)
+            worked = aduc.massErase()
+        if worked:
+            if filename=='STDIN':
+                data=sys.stdin.read().encode('ascii')
+                worked &= aduc.uploadBytes(data,
+                    andVerify=andVerify,andRun=andRun,andReset=andReset)
+            elif filename:
+                worked &= aduc.upload(filename,
+                    andVerify=andVerify,andRun=andRun,andReset=andReset,postRun=postRun)
         didSomething=True
     if printhelp or not didSomething:
         print('USEAGE:')
