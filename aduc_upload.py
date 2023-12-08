@@ -269,6 +269,8 @@ class AducConnection:
         Erase flash starting at address and ending at address+numBytes
         (will always round up to erase entire pages)
         """
+        if numBytes<1:
+            return True
         self.statusCB(AducStatus.ERASING)
         ret=self._erasePacket(address,ceil(numBytes/self.pageSize))
         if not ret:
@@ -277,6 +279,24 @@ class AducConnection:
             self.statusCB(AducStatus.ERASE_SUCCEEDED)
             self.percentCB(1.0)
         return ret
+        
+    def massErase(self)->bool:
+        """
+        Erase the entire flash
+        (and un-protect)
+
+        IMPORTANT NOTE:  Erases entire flash, so will also
+            lose config data section too!
+        """
+        self.statusCB(AducStatus.ERASING)
+        ret=self._erasePacket(0x00000000,0x00)
+        if not ret:
+            self.statusCB(AducStatus.ERASE_FAILED)
+        else:
+            self.statusCB(AducStatus.ERASE_SUCCEEDED)
+            self.percentCB(1.0)
+        return ret
+    eraseAll=massErase
 
     def _writePacket(self,address:int,data:bytes)->bool:
         """
@@ -595,6 +615,7 @@ def cmdline(args:typing.Iterable[str])->int:
     andReset=False
     worked=False
     postRun=None
+    massEraseFirst=False
     for arg in args:
         if arg.startswith('-'):
             av=arg.split('=',1)
@@ -611,18 +632,23 @@ def cmdline(args:typing.Iterable[str])->int:
                 andReset=len(av)<2 or av[1][0].lower() in ('t','y','1')
             elif av[0]=='--thenrun':
                 postRun=av[1].strip()
+            elif av[0] in ('--masserase','--eraseall'):
+                massEraseFirst=True
             else:
                 printhelp=True
         else:
             filename=arg
-    if not printhelp and filename and port:
+    if not printhelp and (filename or massEraseFirst) and port:
         print()
+        aduc=AducConnection(port)
+        if massEraseFirst:
+            aduc.massErase()
         if filename=='STDIN':
             data=sys.stdin.read().encode('ascii')
-            worked = AducConnection(port).uploadBytes(data,
+            worked = aduc.uploadBytes(data,
                 andVerify=andVerify,andRun=andRun,andReset=andReset)
-        else:
-            worked = AducConnection(port).upload(filename,
+        elif filename:
+            worked = aduc.upload(filename,
                 andVerify=andVerify,andRun=andRun,andReset=andReset,postRun=postRun)
         didSomething=True
     if printhelp or not didSomething:
@@ -635,6 +661,8 @@ def cmdline(args:typing.Iterable[str])->int:
         print('  --reset[=t/f]  ... reset device after uploading (default = f)')
         print('  --verify[=t/f]  .. verify after uploading (default = t)')
         print('  --postRun="shell command"  .. run a shell command after the upload')
+        print('  --massErase ...... erase (and unprotect) entire flash before upload')
+        print('  --eraseAll ....... same as --massErase')
         print('FILENAME:')
         print('  accepts .hex, .elf, and .bin')
         print('  If the filename is STDIN it will read the file bytes from standard i/o')
