@@ -21,10 +21,10 @@ def replacePoundDefinesInFile(filename:str,
     quotestrings=True
     )->None:
     """
-    Opens/creates a c++ file and changes/adds a series of #define statements 
+    Opens/creates a c++ file and changes/adds a series of #define statements
 
     :filename: existing data to replace #defines in
-    :quotestrings: enclose passed in str values in "".  (default=True) if False, 
+    :quotestrings: enclose passed in str values in "".  (default=True) if False,
         you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
 
     NOTE: Does not enforce all caps names.  That's on you.
@@ -48,10 +48,10 @@ def replacePoundDefinesInCode(existingCode:str='',
     quotestrings=True
     )->str:
     """
-    Optionally takes existing c++ code and changes/adds a series of #define statements 
+    Optionally takes existing c++ code and changes/adds a series of #define statements
 
     :existingCode: existing data to replace #defines in
-    :quotestrings: enclose passed in str values in "".  (default=True) if False, 
+    :quotestrings: enclose passed in str values in "".  (default=True) if False,
         you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
 
     NOTE: Does not enforce all caps names.  That's on you.
@@ -133,7 +133,7 @@ def updateVersionInFile(
     :existingCode: existing data to replace #defines in
     :version: version to update. can be None.
     :buildDate: build date to update. can be None. default is now()
-    :quotestrings: enclose passed in str values in "".  (default=True) if False, 
+    :quotestrings: enclose passed in str values in "".  (default=True) if False,
         you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
         This does not affect VERSION or BUILD_DATE, which are always strings
 
@@ -169,7 +169,7 @@ def updateVersionInCode(
     :existingCode: existing data to replace #defines in
     :version: version to update. can be None.
     :buildDate: build date to update. can be None. default is now()
-    :quotestrings: enclose passed in str values in "".  (default=True) if False, 
+    :quotestrings: enclose passed in str values in "".  (default=True) if False,
         you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
         This does not affect VERSION or BUILD_DATE, which are always strings
 
@@ -222,7 +222,7 @@ def cmdline(args:typing.Iterable[str])->int:
                 if len(av)>1:
                     buildDate=av[1].strip()
                 else:
-                    buildDate=datetime.datetime.now()
+                    buildDate=datetime.datetime.now().astimezone()
             elif av[0].startswith('--'):
                 if len(av)>1:
                     name2val[av[0][2:]]=av[1]
@@ -243,6 +243,8 @@ def cmdline(args:typing.Iterable[str])->int:
     if '-d' in args:
         if buildDate is None:
             print(datetime.datetime.now().astimezone().isoformat())
+        elif isinstance(buildDate,str):
+            print(buildDate)
         else:
             print(buildDate.astimezone().isoformat())
         printhelp=False
