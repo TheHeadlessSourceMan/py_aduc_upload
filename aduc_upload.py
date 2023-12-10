@@ -129,7 +129,7 @@ class AducConnection:
     """
 
     def __init__(self,
-        port:str="COM6",
+        port:typing.Optional[str]=None,
         baudrate:int=115200,
         bytesize:int=8,
         parity:str='N',
@@ -139,7 +139,15 @@ class AducConnection:
         statusCB:StatusCB=stdoutCB.statusCB,
         percentCB:PercentCB=stdoutCB.percentCB
         ):
-        """ """
+        """
+        If port is None, if there is only one available, use that
+        otherwise ask using a dialog.
+        """
+        if port is None:
+            import port_picker_ui
+            port=port_picker_ui.askForPort(dontAskIfOnlyOne=True)
+            if port is None:
+                raise Exception("There are no com ports.")
         self.port:str=port
         self.baudrate=baudrate
         self.bytesize=bytesize
@@ -237,7 +245,7 @@ class AducConnection:
         checksum=self._checksum(sendbuf)
         ser=self.connect()
         # dispose of any lingering incoming junk
-        response='x'
+        response=b'x'
         while response:
             response=ser.read(1)
         # send it
@@ -250,7 +258,8 @@ class AducConnection:
             return True
         if response[0]==0x07: # device responded with fail
             return False
-        raise AducException(f'Unexpected serial response: {hex(response[0])}')
+        i:int=response[0]
+        raise AducException(f'Unexpected serial response: {hex(i)}')
 
     def _erasePacket(self,address:int,numPages:int)->bool:
         """
@@ -279,7 +288,7 @@ class AducConnection:
             self.statusCB(AducStatus.ERASE_SUCCEEDED)
             self.percentCB(1.0)
         return ret
-        
+
     def massErase(self)->bool:
         """
         Erase the entire flash
@@ -336,7 +345,7 @@ class AducConnection:
             numWritten=min(total-complete,self.bytesPerWritePacket)
             chunk=data[complete:complete+numWritten]
             while len(chunk)<self.bytesPerWritePacket:
-                chunk.append(0x00)
+                chunk=chunk+bytes(0x00)
             ret=self._writePacket(address,chunk)
             if not ret:
                 self.statusCB(AducStatus.WRITE_FAILED)
@@ -367,9 +376,9 @@ class AducConnection:
             cmd=['objcopy','-S','-O','ihex',filename,ihexFilename]
             po=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             _,err=po.communicate()
-            err=err.decode('utf-8',errors='ignore').strip()
-            if err:
-                raise AducException('Error converting .elf to .hex: '+err)
+            errStr=err.decode('utf-8',errors='ignore').strip()
+            if errStr:
+                raise AducException('Error converting .elf to .hex: '+errStr)
         return ihexFilename
 
     def loadIhex(self,filename:str)->intelhex.IntelHex:
@@ -609,7 +618,7 @@ def cmdline(args:typing.Iterable[str])->int:
     didSomething=False
     printhelp=False
     filename=''
-    port:str='COM6'
+    port=None
     andVerify=True
     andRun=False
     andReset=False
@@ -638,18 +647,18 @@ def cmdline(args:typing.Iterable[str])->int:
                 printhelp=True
         else:
             filename=arg
-    if not printhelp and (filename or massEraseFirst) and port:
+    if not printhelp and (filename or massEraseFirst):
         print()
         aduc=AducConnection(port)
         if massEraseFirst:
-            worked = aduc.massErase()
+            worked=aduc.massErase()
         if worked:
             if filename=='STDIN':
                 data=sys.stdin.read().encode('ascii')
-                worked &= aduc.uploadBytes(data,
+                worked&=aduc.uploadBytes(data,
                     andVerify=andVerify,andRun=andRun,andReset=andReset)
             elif filename:
-                worked &= aduc.upload(filename,
+                worked&=aduc.upload(filename,
                     andVerify=andVerify,andRun=andRun,andReset=andReset,postRun=postRun)
         didSomething=True
     if printhelp or not didSomething:
@@ -658,6 +667,8 @@ def cmdline(args:typing.Iterable[str])->int:
         print('OPTIONS:')
         print('  -h ............... this help')
         print('  --port= .......... serial port (what your os calls it, eg "COM1" or "/dev/ttyS0")')
+        print('                     if not specified, will take whatever port is availble')
+        print('                     or ask if there is more than one')
         print('  --run[=t/f]  ..... auto-run after uploading (default = f)')
         print('  --reset[=t/f]  ... reset device after uploading (default = f)')
         print('  --verify[=t/f]  .. verify after uploading (default = t)')
