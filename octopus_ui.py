@@ -337,7 +337,7 @@ class OctopusWindow(Tk,PortComponents):
         Tk.__init__(self)
         self.title('octopus')
         self.geometry('250x800')
-        self.iconbitmap(os.sep.join((os.path.abspath(__file__).rsplit(os.sep,1)[0],"oct.ico")))
+        self.iconbitmap(os.sep.join((os.path.abspath(__file__).rsplit(os.sep,1)[0],"octopus.ico")))
         self._pollQueue()
 
     def _pollQueue(self):

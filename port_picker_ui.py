@@ -19,7 +19,7 @@ class PortPickerWindow(Tk):
         self.selectedPort:typing.Optional[str]=None
         self.title('')
         self.geometry('150x50')
-        self.iconbitmap(os.sep.join((os.path.abspath(__file__).rsplit(os.sep,1)[0],"oct.ico")))
+        self.iconbitmap(os.sep.join((os.path.abspath(__file__).rsplit(os.sep,1)[0],"serial.ico")))
         self.comboboxValue=StringVar()
         self.ports=[]
         for port in serial.tools.list_ports.comports():
