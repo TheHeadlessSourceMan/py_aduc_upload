@@ -88,6 +88,9 @@ def replacePoundDefinesInCode(existingCode:str='',
             insertAt=lineNo+1
         elif line.startswith('#'):
             insertAt=lineNo+1
+            newData.append(line)
+        else:
+            newData.append(line)
     if insertAt is None:
         # didn't find a natural place to insert more #define's
         # try to stuff it after any head comments
