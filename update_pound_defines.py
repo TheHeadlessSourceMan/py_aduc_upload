@@ -16,6 +16,36 @@ def cppQuote(s:typing.Any)->str:
         .replace('\n',r'\n').replace('\0',r'\0').replace('"',r'\"')+'"'
 
 
+def getPoundDefines(
+    filenames:typing.Union[str,typing.Iterable[str]],
+    defaults:typing.Optional[typing.Dict[str,str]]=None
+    )->typing.Dict[str,str]:
+    """
+    get all #defines from c files.
+
+    :filenames: one or more filenames
+
+    returns a dict
+    """
+    if defaults is not None:
+        ret=dict(defaults)
+    else:
+        ret={}
+    if isinstance(filenames,str):
+        filenames=[filenames]
+    for filename in filenames:
+        with open(filename,'rb') as f:
+            code=f.read().decode('utf-8',errors="ignore")
+        for line in code.split('\n'):
+            line=line.split('//',1)[0].split(maxsplit=2)
+            if len(line)>1 and line[0]=='#define':
+                if len(line)>2:
+                    ret[line[1]]=line[2]
+                else:
+                    ret[line[1]]=''
+    return ret
+
+
 def replacePoundDefinesInFile(filename:str,
     name2val:typing.Dict[str,typing.Union[int,float,bool,str]],
     quotestrings=True
@@ -211,6 +241,8 @@ def cmdline(args:typing.Iterable[str])->int:
     buildDate:typing.Union[None,str,datetime.datetime]=None
     name2val:typing.Dict[str,str]={}
     quotestrings:bool=False
+    justValue=False
+    definesToGet:typing.List[str]=[]
     for arg in args:
         if arg.startswith('-'):
             av=arg.split('=',1)
@@ -219,6 +251,8 @@ def cmdline(args:typing.Iterable[str])->int:
                 printhelp=True
             elif avl=='-d':
                 pass # deal with this later
+            if avl=='-v':
+                justValue=True
             elif avl=='--version':
                 version=av[1].strip()
             elif avl=='--build_date':
@@ -226,6 +260,12 @@ def cmdline(args:typing.Iterable[str])->int:
                     buildDate=av[1].strip()
                 else:
                     buildDate=datetime.datetime.now().astimezone()
+            elif avl in ('--get_define','--get_defines'):
+                if len(av)>1:
+                    for item in av[1].split(','):
+                        definesToGet.append(item.strip())
+                else:
+                    definesToGet.append('*')
             elif av[0].startswith('--'):
                 if len(av)>1:
                     name2val[av[0][2:]]=av[1]
@@ -251,6 +291,20 @@ def cmdline(args:typing.Iterable[str])->int:
         else:
             print(buildDate.astimezone().isoformat())
         printhelp=False
+    if definesToGet:
+        defines=getPoundDefines(filename)
+        if '*' in definesToGet:
+            definesToGet=[str(k) for k in defines.keys()]
+        for item in definesToGet:
+            val=defines.get(item)
+            if justValue:
+                if val[0]=='"':
+                    val=val.replace('"','')
+                elif val[0]=="'":
+                    val=val.replace("'",'')
+                print(f"{val}")
+            else:
+                print(f"{item} = {val}")
     if printhelp:
         print('USEAGE:')
         print('  update_pound_defines [options] [filename]')
@@ -261,6 +315,12 @@ def cmdline(args:typing.Iterable[str])->int:
         print('  --build_date[=date]  .. update the build date')
         print('                          if date not specified, use now()')
         print('  --[name]=[val]  ....... update anything else')
+        print('  --get_define[s][=name] . get a defined value from the file')
+        print('                          happens after everything is set')
+        print('                          can have multiple get_define options')
+        print('                          if name not specified, get all')
+        print('                          will not run C preprocesor, but gets value as-is')
+        print('  -v .................... make get_define show just the value(not the name=)')
         print('FILENAME:')
         print('  If the filename is STDIN it will read the file bytes from standard in')
         print('  and dump the result back to standard out')
