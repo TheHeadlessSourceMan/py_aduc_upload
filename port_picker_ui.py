@@ -29,7 +29,7 @@ class PortPickerWindow(Tk):
         self.comboboxValue=StringVar()
         label=Label(self,text='Select serial port')
         label.pack()
-        combo=Combobox(self,textvariable=self.comboboxValue,values=self.ports)
+        combo=Combobox(self,textvariable=self.comboboxValue,values=self.validPorts)
         combo.pack()
         combo.bind('<<ComboboxSelected>>',self.onSelect)
 
@@ -81,12 +81,12 @@ class PortPickerWindow(Tk):
     def validPorts(self)->typing.Iterable[str]:
         """
         All valid ports
-        
-        NOTE: using getValidPorts() gives you the 
+
+        NOTE: using getValidPorts() gives you the
         option of refreshing the port list
         """
         return self.getValidPorts()
-    
+
     def getValidPorts(self,forceRefresh:bool=False)->typing.Iterable[str]:
         """
         Get a list of all valid ports
