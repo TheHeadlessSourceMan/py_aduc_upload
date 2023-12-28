@@ -343,9 +343,9 @@ class AducConnection:
         self.percentCB(0.0)
         while complete<total:
             numWritten=min(total-complete,self.bytesPerWritePacket)
-            chunk=data[complete:complete+numWritten]
+            chunk:bytes=bytes(data[complete:complete+numWritten])
             while len(chunk)<self.bytesPerWritePacket:
-                chunk=chunk+bytes(0x00)
+                chunk=chunk+bytes([0x00])
             ret=self._writePacket(address,chunk)
             if not ret:
                 self.statusCB(AducStatus.WRITE_FAILED)

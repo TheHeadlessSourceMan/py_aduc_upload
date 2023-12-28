@@ -23,6 +23,7 @@ class PortPickerWindow(Tk):
         self.comboboxValue=StringVar()
         self.ports=[]
         for port in serial.tools.list_ports.comports():
+            port=str(port).strip().split(maxsplit=1)[0]
             if ignorePorts is not None and port not in ignorePorts:
                 self.ports.append(port)
         label=Label(self,text='Select serial port')
