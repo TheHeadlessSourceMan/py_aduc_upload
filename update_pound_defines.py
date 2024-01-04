@@ -144,7 +144,7 @@ def replacePoundDefinesInCode(existingCode:str='',
         if k not in replaced:
             newData.insert(insertAt,f'#define {k} {fixval(v)}')
     # add terminating newline
-    if not newData or not newData[-1].strip():
+    if not newData or newData[-1].strip():
         newData.append('')
     if crlf:
         return '\r\n'.join(newData)
