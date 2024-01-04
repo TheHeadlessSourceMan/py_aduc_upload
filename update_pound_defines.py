@@ -221,7 +221,11 @@ def updateVersionInCode(
         name2val['VERSION']=version
     if buildDate is not None:
         if not isinstance(buildDate,str):
-            buildDate=buildDate.astimezone().isoformat()
+            tz=os.environ.get('TZ')
+            if tz is not None:
+                import pytz
+                tz=pytz.timezone(tz)
+            buildDate=buildDate.astimezone(tz).isoformat()
         if not quotestrings:
             # quote it ourselves
             buildDate=cppQuote(buildDate)
