@@ -96,7 +96,8 @@ class PortPickerWindow(Tk):
         return self.getPorts(self.ignorePorts,forceRefresh)
 
 def askForPort(dontAskIfOnlyOne:bool=True,
-    ignorePorts:typing.Optional[typing.Iterable[str]]=None
+    ignorePorts:typing.Optional[typing.Iterable[str]]=None,
+    forceRefresh:bool=False,
     )->typing.Optional[str]:
     """
     optionally pop up a dialog to allow the user to select a serial port
@@ -104,7 +105,7 @@ def askForPort(dontAskIfOnlyOne:bool=True,
     if dontAskIfOnlyOne then if there is only one port, return it
     if there are no serial ports, returns None immediately
     """
-    ports=PortPickerWindow.getPorts(ignorePorts)
+    ports=PortPickerWindow.getPorts(ignorePorts,forceRefresh)
     if not ports:
         return None
     if len(ports)==1 and dontAskIfOnlyOne:
