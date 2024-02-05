@@ -1,11 +1,18 @@
+"""
+UI window for octopus.  Useage:
+PortPickerWindow().mainloop()
+
+Generally it's easier to use the askForPort() function instead
+because it can do things like not pop up the window when it's not necessary
+"""
 import typing
 import os
-from tkinter import *
-from tkinter.ttk import *
+import tkinter as tk
+import tkinter.ttk as ttk
 import serial.tools.list_ports
 
 
-class PortPickerWindow(Tk):
+class PortPickerWindow(tk.Tk):
     """
     UI window for octopus.  Useage:
     PortPickerWindow().mainloop()
@@ -20,23 +27,54 @@ class PortPickerWindow(Tk):
     def __init__(self,
         ignorePorts:typing.Optional[typing.Iterable[str]]=None):
         """ """
-        Tk.__init__(self)
+        tk.Tk.__init__(self)
         self.selectedPort:typing.Optional[str]=None
         self.ignorePorts=ignorePorts
         self.title('')
         self.geometry('150x50')
-        self.iconbitmap(os.sep.join((os.path.abspath(__file__).rsplit(os.sep,1)[0],"serial.ico")))
-        self.comboboxValue=StringVar()
-        label=Label(self,text='Select serial port')
+        here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
+        self.iconbitmap(os.sep.join((here,"serial.ico")))
+        self.comboboxValue=tk.StringVar()
+        label=ttk.Label(self,text='Select serial port')
         label.pack()
-        combo=Combobox(self,textvariable=self.comboboxValue,values=self.validPorts)
+        values=[p for p in self.validPorts]
+        combo=ttk.Combobox(self,textvariable=self.comboboxValue,values=values)
         combo.pack()
         combo.bind('<<ComboboxSelected>>',self.onSelect)
+        self._refreshTimerKeepGoing=True
+        self.master.after(1000,self.onTimer)
+
+    def onTimer(self):
+        """
+        Will re-check the ports every second
+        """
+        if self._refreshTimerKeepGoing:
+            oldValues:typing.List[str]=self.getValidPorts(False)
+            newValues:typing.List[str]=self.getValidPorts(True)
+            # only want to update the combo if the port list changes
+            # to minimize ui disruption (losing mouse focus, etc)
+            updateCombobox=False
+            if len(oldValues)!=len(newValues):
+                updateCombobox=True
+            else:
+                try:
+                    for v in oldValues:
+                        _=newValues.index(v)
+                except IndexError:
+                    updateCombobox=True
+            if updateCombobox:
+                self.combo.configure(values=newValues)
+            # check again in another second
+            self.master.after(1000,self.onTimer)
+
+    def __del__(self):
+        self._refreshTimerKeepGoing=False
 
     def onSelect(self,*_):
         """
         called when a port is selected in the combo box
         """
+        self._refreshTimerKeepGoing=False
         self.selectedPort=self.comboboxValue.get()
         self.destroy()
 
@@ -72,9 +110,10 @@ class PortPickerWindow(Tk):
         if ignorePorts is None or not ignorePorts:
             return cls._ports
         ports=[]
-        for port in cls._ports:
-            if port not in ignorePorts:
-                ports.append(port)
+        if cls._ports is not None:
+            for port in cls._ports:
+                if port not in ignorePorts:
+                    ports.append(port)
         return ports
 
     @property
@@ -98,15 +137,18 @@ class PortPickerWindow(Tk):
 def askForPort(dontAskIfOnlyOne:bool=True,
     ignorePorts:typing.Optional[typing.Iterable[str]]=None,
     forceRefresh:bool=False,
+    askIfZero:bool=False,
     )->typing.Optional[str]:
     """
     optionally pop up a dialog to allow the user to select a serial port
 
-    if dontAskIfOnlyOne then if there is only one port, return it
-    if there are no serial ports, returns None immediately
+    :dontAskIfOnlyOne: if there is only one port, return it
+        if there are no serial ports, returns None immediately
+    :askIfZero: if there are no ports, ask anyway
+        use case is: user will plug something in and the list will update
     """
     ports=PortPickerWindow.getPorts(ignorePorts,forceRefresh)
-    if not ports:
+    if not ports and not askIfZero:
         return None
     if len(ports)==1 and dontAskIfOnlyOne:
         return ports[0]
@@ -123,6 +165,7 @@ def cmdline(args:typing.Iterable[str])->int:
     """
     printhelp=False
     dontAskIfOnlyOne:bool=False
+    askIfZero:bool=False
     ignorePorts:typing.List[str]=[]
     for arg in args:
         if arg.startswith('-'):
@@ -132,6 +175,8 @@ def cmdline(args:typing.Iterable[str])->int:
                 printhelp=True
             elif av[0]=='--dna1':
                 dontAskIfOnlyOne=True
+            elif av[0]=='--ask0':
+                askIfZero=True
             elif av[0] in ('--ignore','--ignoreports'):
                 ignorePorts.extend(av[1].replace(' ','').split(','))
             else:
@@ -139,16 +184,20 @@ def cmdline(args:typing.Iterable[str])->int:
         else:
             printhelp=True
     if not printhelp:
-        port=askForPort(dontAskIfOnlyOne,ignorePorts=ignorePorts)
+        port=askForPort(dontAskIfOnlyOne,
+            ignorePorts=ignorePorts,askIfZero=askIfZero)
         print(port)
     if printhelp:
         print('USEAGE:')
         print('  port_picker_ui [options]')
         print('OPTIONS:')
         print('  -h ............................. this help')
-        print('  --dna1 ......................... do not ask if there\'s only one')
-        print('  --ignore=port[,port,...] ....... ignore checking on certain com ports')
-        print('  --ignorePorts=port[,port,...] .. ignore checking on certain com ports')
+        print('  --ask0 ......................... ask if there are none')
+        print('           (assumes they will plug in something')
+        print('          causing the port list to update)')
+        print('  --dna1 ......................... do not ask if only 1 exists')
+        print('  --ignore=port[,port,...] ....... ignore certain com ports')
+        print('  --ignorePorts=port[,port,...] .. ignore certain com ports')
         return 1
     return 0
 
