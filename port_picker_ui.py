@@ -38,11 +38,11 @@ class PortPickerWindow(tk.Tk):
         label=ttk.Label(self,text='Select serial port')
         label.pack()
         values=[p for p in self.validPorts]
-        combo=ttk.Combobox(self,textvariable=self.comboboxValue,values=values)
-        combo.pack()
-        combo.bind('<<ComboboxSelected>>',self.onSelect)
+        self.combo=ttk.Combobox(self,textvariable=self.comboboxValue,values=values)
+        self.combo.pack()
+        self.combo.bind('<<ComboboxSelected>>',self.onSelect)
         self._refreshTimerKeepGoing=True
-        self.master.after(1000,self.onTimer)
+        self.after(1000,self.onTimer)
 
     def onTimer(self):
         """
@@ -65,7 +65,7 @@ class PortPickerWindow(tk.Tk):
             if updateCombobox:
                 self.combo.configure(values=newValues)
             # check again in another second
-            self.master.after(1000,self.onTimer)
+            self.after(1000,self.onTimer)
 
     def __del__(self):
         self._refreshTimerKeepGoing=False
