@@ -47,6 +47,16 @@ class PortPickerWindow(tk.Tk):
         self._refreshTimerKeepGoing=True
         self.after(1000,self.onTimer)
 
+    @property
+    def label(self)->str:
+        """
+        Get set the prompt label for the port picker
+        """
+        return self._label.get()
+    @label.setter
+    def label(self,label:str):
+        return self._label.set(label)
+
     def onTimer(self):
         """
         Will re-check the ports every second
