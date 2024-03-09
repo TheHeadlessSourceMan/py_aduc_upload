@@ -9,7 +9,7 @@ import typing
 import os
 import tkinter as tk
 import tkinter.ttk as ttk
-import serial.tools.list_ports
+import serial.tools.list_ports # type: ignore
 
 
 class PortPickerWindow(tk.Tk):
@@ -25,20 +25,23 @@ class PortPickerWindow(tk.Tk):
     _ports:typing.Optional[typing.List[str]]=None
 
     def __init__(self,
-        ignorePorts:typing.Optional[typing.Iterable[str]]=None):
+        ignorePorts:typing.Optional[typing.Iterable[str]]=None,
+        caption:str='Select serial port',
+        title:str='Select serial port'):
         """ """
         tk.Tk.__init__(self)
         self.selectedPort:typing.Optional[str]=None
         self.ignorePorts=ignorePorts
-        self.title('')
+        self.title(title)
         self.geometry('150x50')
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
         self.iconbitmap(os.sep.join((here,"serial.ico")))
         self.comboboxValue=tk.StringVar()
-        label=ttk.Label(self,text='Select serial port')
+        label=ttk.Label(self,text=caption)
         label.pack()
         values=[p for p in self.validPorts]
-        self.combo=ttk.Combobox(self,textvariable=self.comboboxValue,values=values)
+        self.combo=ttk.Combobox(self,
+            textvariable=self.comboboxValue,values=values)
         self.combo.pack()
         self.combo.bind('<<ComboboxSelected>>',self.onSelect)
         self._refreshTimerKeepGoing=True
