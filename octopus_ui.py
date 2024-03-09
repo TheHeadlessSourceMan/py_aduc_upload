@@ -368,6 +368,7 @@ def cmdline(args:typing.Iterable[str])->int:
     """
     printhelp=False
     postRun=''
+    filename=None
     ignorePorts:typing.List[str]=[]
     for arg in args:
         if arg.startswith('-'):
@@ -383,6 +384,8 @@ def cmdline(args:typing.Iterable[str])->int:
                 printhelp=True
         else:
             filename=arg
+    if filename is None:
+        printhelp=True
     if not printhelp:
         octopus=OctopusWindow(filename=filename,postRun=postRun,ignorePorts=ignorePorts)
         octopus.mainloop() # never returns

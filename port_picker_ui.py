@@ -9,7 +9,7 @@ import typing
 import os
 import tkinter as tk
 import tkinter.ttk as ttk
-import serial.tools.list_ports
+import serial.tools.list_ports # type: ignore
 
 
 class PortPickerWindow(tk.Tk):
@@ -35,14 +35,26 @@ class PortPickerWindow(tk.Tk):
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
         self.iconbitmap(os.sep.join((here,"serial.ico")))
         self.comboboxValue=tk.StringVar()
-        label=ttk.Label(self,text='Select serial port')
+        self._label=tk.StringVar(value='Select serial port')
+        label=ttk.Label(self,textvariable=self._label)
         label.pack()
         values=[p for p in self.validPorts]
-        self.combo=ttk.Combobox(self,textvariable=self.comboboxValue,values=values)
+        self.combo=ttk.Combobox(self,
+            textvariable=self.comboboxValue,values=values)
         self.combo.pack()
         self.combo.bind('<<ComboboxSelected>>',self.onSelect)
         self._refreshTimerKeepGoing=True
         self.after(1000,self.onTimer)
+
+    @property
+    def label(self)->str:
+        """
+        Get set the prompt label for the port picker
+        """
+        return self._label.get()
+    @label.setter
+    def label(self,label:str):
+        return self._label.set(label)
 
     def onTimer(self):
         """
