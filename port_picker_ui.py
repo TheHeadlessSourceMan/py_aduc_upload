@@ -7,6 +7,7 @@ because it can do things like not pop up the window when it's not necessary
 """
 import typing
 import os
+import time
 import tkinter as tk
 import tkinter.ttk as ttk
 import serial.tools.list_ports # type: ignore
@@ -27,13 +28,16 @@ class PortPickerWindow(tk.Tk):
     def __init__(self,
         ignorePorts:typing.Optional[typing.Iterable[str]]=None,
         caption:str='Select serial port',
-        title:str='Select serial port'):
+        title:str='Select serial port',
+        tkMaster:typing.Any=None):
         """ """
         tk.Tk.__init__(self)
         self.selectedPort:typing.Optional[str]=None
         self.ignorePorts=ignorePorts
         self.title(title)
-        self.geometry('150x50')
+        w=150+7*len(title)
+        h=51
+        self.geometry(f'{w}x{h}')
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
         self.iconbitmap(os.sep.join((here,"serial.ico")))
         self.comboboxValue=tk.StringVar()
