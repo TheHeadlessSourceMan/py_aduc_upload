@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Python interface to the serial uploader for Analog Devices ADuC70xx family of devices.
+Python interface to the serial uploader for
+Analog Devices ADuC70xx family of devices.
 
-This includes the popular ADuC-7020 chip as found in development boards like the
-Olimex ADUC-H7020 and Analog Devices EVAL-ADUC7020 as well as in many popular embedded devices.
+This includes the popular ADuC-7020 chip as found in development boards
+like the Olimex ADUC-H7020 and Analog Devices EVAL-ADUC7020
+as well as in many popular embedded devices.
 
 Consider it a more useable form of the offical ARMWSD-UART.exe program.
 
@@ -23,15 +25,15 @@ import subprocess
 from math import ceil
 from enum import Enum, auto
 try:
-    import serial
+    import serial # type:ignore
 except ImportError as e:
     print('pyserial not found.  Try something like:')
     print('    pip install pyserial')
     raise e
 try:
-    import intelhex
+    import intelhex # type: ignore
 except ImportError as e:
-    print('intelhex library (for .hex format) was not found.  Try something like:')
+    print('intelhex library (for .hex format) was not found.  Try:')
     print('    pip install intelhex')
     raise e
 
@@ -86,7 +88,8 @@ class StdoutCB:
         """
         Callback for a status state change
         """
-        self.status=' '.join([word.lower() for word in str(status).rsplit('.',1)[-1].split('_')])
+        self.status=' '.join([
+            word.lower() for word in str(status).rsplit('.',1)[-1].split('_')])
         current=str(self)+' '*20
         if current!=self.last:
             print(current,end="")
@@ -110,10 +113,12 @@ stdoutCB=StdoutCB()
 
 class AducConnection:
     """
-    Python interface to the serial uploader for Analog Devices ADuC70xx family of devices.
+    Python interface to the serial uploader for Analog Devices ADuC70xx family
+    of devices.
 
-    This includes the popular ADuC-7020 chip as found in development boards like the
-    Olimex ADUC-H7020 and Analog Devices EVAL-ADUC7020 as well as in many popular embedded devices.
+    This includes the popular ADuC-7020 chip as found in development boards
+    like the Olimex ADUC-H7020 and Analog Devices EVAL-ADUC7020
+    as well as in many popular embedded devices.
 
     Consider it a more useable form of the offical ARMWSD-UART.exe program.
 
@@ -221,7 +226,8 @@ class AducConnection:
 
     def _remapAddress(self,address:int)->int:
         """
-        During normal operation, flash is mirrored from 0x0080_0000 to 0x0000_0000
+        During normal operation, flash is mirrored
+        from 0x0080_0000 to 0x0000_0000
         ARMWSD prefers to write to this for some reason.
         """
         if address>=0x0080000:
@@ -237,7 +243,8 @@ class AducConnection:
         if packet_len>255:
             raise Exception('Packet size too large!')
         magic:bytes=bytes([0x07,0x0E])
-        addr_bytes:bytes=address.to_bytes(length=4,byteorder="big",signed=False)
+        addr_bytes:bytes=address.to_bytes(
+            length=4,byteorder="big",signed=False)
         sendbuf=bytearray(addr_bytes)
         sendbuf.insert(0,command.encode('ascii')[0])
         sendbuf.insert(0,packet_len)
@@ -270,7 +277,8 @@ class AducConnection:
             if numPages==0:
                 return True # because, sure, I erased zero pages.
             raise AducException('numPages must be 1..124 (%d given)'%numPages)
-        ret=self._sendPacket('E',address,numPages.to_bytes(1,byteorder='little',signed=False))
+        ret=self._sendPacket('E',address,
+            numPages.to_bytes(1,byteorder='little',signed=False))
         return ret
 
     def erase(self,address:int,numBytes:int)->bool:
@@ -371,10 +379,12 @@ class AducConnection:
         Convert a .elf file into a .hex file
         """
         ihexFilename=filename.rsplit('.',1)[0]+'.hex'
-        if not os.path.exists(ihexFilename) or os.path.getmtime(filename)>os.path.getmtime(ihexFilename):
+        if not os.path.exists(ihexFilename) \
+            or os.path.getmtime(filename)>os.path.getmtime(ihexFilename):
             # (re)generate the ihexFilename file
             cmd=['objcopy','-S','-O','ihex',filename,ihexFilename]
-            po=subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            po=subprocess.Popen(cmd,shell=True,
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             _,err=po.communicate()
             errStr=err.decode('utf-8',errors='ignore').strip()
             if errStr:
@@ -410,7 +420,8 @@ class AducConnection:
             asc=data[0:10].decode('ascii')
             if asc[0]==':':
                 import re
-                if re.match(r':[0-9A-Fa-f]{2}\s+[[0-9A-Fa-f]{4,99}',asc) is not None:
+                exp=r':[0-9A-Fa-f]{2}\s+[[0-9A-Fa-f]{4,99}'
+                if re.match(exp,asc) is not None:
                     return True
         return False
 
@@ -429,8 +440,9 @@ class AducConnection:
         """
         Upload raw data or intel hex data to the device
 
-        :decodeAs: whether to decode as 'ihex' (intel hex) format, 'elf', or as 'raw' bytes
-            if not specified, will try to guess based upon the file contents
+        :decodeAs: whether to decode as 'ihex' (intel hex) format, 'elf', or
+            as 'raw' bytes if not specified, will try to guess based upon
+            the file contents
         """
         if decodeAs is None:
             if self._looksLikeIhex(data):
@@ -475,8 +487,10 @@ class AducConnection:
         uploaded=0
         for start,stop in ihex.segments():
             amt=stop-start
-            # wait until after this loop to do run/reset in case there is more than 1 segment
-            ret=self.write(start,ihex.tobinarray(start,stop),andVerify,False,False,noErase=True)
+            # wait until after this loop to do run/reset
+            # in case there is more than 1 segment
+            ret=self.write(start,ihex.tobinarray(start,stop),
+                andVerify,False,False,noErase=True)
             if not ret:
                 break
             uploaded+=amt
@@ -485,13 +499,14 @@ class AducConnection:
                 ret=self.run()
             elif andReset:
                 ret=self.reset()
-            # we resetted, so don't consider firmware update mode "connected" anymore
+            # we resetted, so don't consider update mode "connected" anymore
             self._connectionEstablished=False
         if ret and (postRun is not None):
             # run whatever the postRun shell command is
             self.statusCB(AducStatus.POST_STEP)
             self.percentCB(0.0)
-            po=subprocess.Popen(postRun,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            po=subprocess.Popen(postRun,shell=True,
+                stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
             out,_=po.communicate()
             print(out.decode('utf-8',errors='ignore').strip())
             ret=po.returncode!=0
@@ -593,17 +608,31 @@ class AducConnection:
         return ret
 
 
-def upload(filename:str,port:str='COM6',andVerify=True,andRun=False,andReset=False)->bool:
+def upload(
+    filename:str,
+    port:str='COM6',
+    andVerify=True,
+    andRun=False,
+    andReset=False
+    )->bool:
     """
-    shortcut to use AducConnection to upload and optionally verify, run, and/or reset the device
+    shortcut to use AducConnection to upload
+    and optionally verify, run, and/or reset the device
     """
     return AducConnection(port).upload(filename,
         andVerify=andVerify,andRun=andRun,andReset=andReset)
 
 
-def uploadBytes(data:bytes,port:str='COM6',andVerify=True,andRun=False,andReset=False)->bool:
+def uploadBytes(
+    data:bytes,
+    port:str='COM6',
+    andVerify=True,
+    andRun=False,
+    andReset=False
+    )->bool:
     """
-    shortcut to use AducConnection to upload and optionally verify, run, and/or reset the device
+    shortcut to use AducConnection to upload
+    and optionally verify, run, and/or reset the device
     """
     return AducConnection(port).uploadBytes(data,
         andVerify=andVerify,andRun=andRun,andReset=andReset)
@@ -615,6 +644,7 @@ def cmdline(args:typing.Iterable[str])->int:
 
     :param args: command line arguments (WITHOUT the filename)
     """
+    import sys
     didSomething=False
     printhelp=False
     filename=''
@@ -659,25 +689,29 @@ def cmdline(args:typing.Iterable[str])->int:
                     andVerify=andVerify,andRun=andRun,andReset=andReset)
             elif filename:
                 worked&=aduc.upload(filename,
-                    andVerify=andVerify,andRun=andRun,andReset=andReset,postRun=postRun)
+                    andVerify=andVerify,
+                    andRun=andRun,
+                    andReset=andReset,
+                    postRun=postRun)
         didSomething=True
     if printhelp or not didSomething:
         print('USEAGE:')
         print('  py_aduc_upload [options] [filename]')
         print('OPTIONS:')
         print('  -h ............... this help')
-        print('  --port= .......... serial port (what your os calls it, eg "COM1" or "/dev/ttyS0")')
-        print('                     if not specified, will take whatever port is availble')
-        print('                     or ask if there is more than one')
-        print('  --run[=t/f]  ..... auto-run after uploading (default = f)')
-        print('  --reset[=t/f]  ... reset device after uploading (default = f)')
+        print('  --port= .......... serial port')
+        print('         (what your os calls it, eg "COM1" or "/dev/ttyS0")')
+        print('         if not specified, will take whatever port is availble')
+        print('         or ask if there is more than one')
+        print('  --run[=t/f]  ..... auto-run after uploading (default=f)')
+        print('  --reset[=t/f]  ... reset device after uploading (default=f)')
         print('  --verify[=t/f]  .. verify after uploading (default = t)')
-        print('  --postRun="shell command"  .. run a shell command after the upload')
-        print('  --massErase ...... erase (and unprotect) entire flash before upload')
+        print('  --postRun="shell command"  .. run shell command after upload')
+        print('  --massErase ...... erase entire flash before upload')
         print('  --eraseAll ....... same as --massErase')
         print('FILENAME:')
         print('  accepts .hex, .elf, and .bin')
-        print('  If the filename is STDIN it will read the file bytes from standard i/o')
+        print('  If filename is STDIN, pipes the file bytes from stdin')
         return 1
     if worked:
         print('\nSUCCESS')

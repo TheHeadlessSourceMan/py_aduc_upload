@@ -7,17 +7,17 @@ import os
 import threading
 import queue
 import time
-from tkinter import *
-from tkinter.ttk import *
-from aduc_upload import AducConnection,AducStatus
-import intelhex
+import tkinter as tk
+import tkinter.ttk as ttk
+import intelhex # type: ignore
 try:
-    import serial
-    import serial.tools.list_ports
+    import serial # type: ignore
+    import serial.tools.list_ports # type: ignore
 except ImportError as e:
     print('pyserial not found.  Try something like:')
     print('    pip install pyserial')
     raise e
+from aduc_upload import AducConnection,AducStatus
 
 class PortStatusMessage:
     """
@@ -36,18 +36,22 @@ class PortStatusMessage:
         self.assignPortsList=assignPortsList
 
 
-class PortStatusComponent(LabelFrame):
+class PortStatusComponent(tk.LabelFrame):
     """
     UI component to maintain status info about a serial port
     """
 
-    def __init__(self,portComponents:"PortComponents",root:Frame,portName:str):
+    def __init__(self,
+        portComponents:"PortComponents",
+        root:tk.Widget,
+        portName:str):
+        """ """
         self.name=portName
-        LabelFrame.__init__(self,root,text=portName,padding=5)
-        self.statusVar=StringVar(root,'Initializing...')
-        self.statusControl=Label(self,textvariable=self.statusVar)
+        tk.LabelFrame.__init__(self,root,text=portName,padding=5)
+        self.statusVar=tk.StringVar(root,'Initializing...')
+        self.statusControl=ttk.Label(self,textvariable=self.statusVar)
         self.statusControl.pack(expand=True, fill='x')
-        self.progressControl=Progressbar(self,length=100)
+        self.progressControl=ttk.Progressbar(self,length=100)
         self.progressControl.pack(expand='yes', fill='x')
         #self.pack(expand='yes', fill='x')
         self._progress=0.0
@@ -59,10 +63,18 @@ class PortStatusComponent(LabelFrame):
 
     @property
     def ihex(self)->intelhex.IntelHex:
+        """
+        current data in intel hex format
+        """
         return self.portComponents.ihex
 
     @property
     def postRun(self)->str:
+        """
+        what to run after the upload
+
+        eg. a configuration script
+        """
         return self.portComponents.postRun
 
     def start(self):
@@ -89,10 +101,13 @@ class PortStatusComponent(LabelFrame):
         """
         main loop of the thread
         """
-        connection=AducConnection(port=self.name,statusCB=self._statusCB,percentCB=self._percentCB)
+        connection=AducConnection(
+            port=self.name,statusCB=self._statusCB,percentCB=self._percentCB)
         while not self._threadExit:
             try:
-                connection.uploadIhex(self.ihex,andVerify=True,andReset=True,postRun=self.postRun)
+                connection.uploadIhex(
+                    self.ihex,andVerify=True,andReset=True,
+                    postRun=self.postRun)
             except Exception as e:
                 print(e)
                 status=str(e).replace('\n',' ').replace('  ',' ')
@@ -100,7 +115,7 @@ class PortStatusComponent(LabelFrame):
                     status=status[0:47]+'...'
                 self.status=status
                 for i in range(10):
-                    # wait for the user to be able to see that there was a problem
+                    # time delay so the user can see there was a problem
                     # use the progress bar as a count-down
                     self.progress=1.0-i/10
                     time.sleep(1)
@@ -140,7 +155,7 @@ class PortStatusComponent(LabelFrame):
         if self._status!=status:
             self._status=status
             msg=PortStatusMessage(self.name,status=str(status))
-            self.portComponents._messageQueue.put(msg)
+            self.portComponents._messageQueue.put(msg) # pylint: disable=protected-access # noqa: E501
     @status.setter
     def status(self,status:str):
         """
@@ -174,7 +189,7 @@ class PortStatusComponent(LabelFrame):
         if self._progress!=progress:
             self._progress=progress
             msg=PortStatusMessage(self.name,progress=progress)
-            self.portComponents._messageQueue.put(msg)
+            self.portComponents._messageQueue.put(msg) # pylint: disable=protected-access # noqa: E501
     @progress.setter
     def progress(self,progress:float):
         """
@@ -204,7 +219,8 @@ class PortComponents:
         self._lastFileReadTimestamp:typing.Optional[typing.Any]=None
         self._lastFileReadSize:typing.Optional[typing.Any]=None
         self._components:typing.Dict[str,PortStatusComponent]={}
-        self._messageQueue:queue.Queue[PortStatusMessage]=queue.Queue[PortStatusMessage]()
+        self._messageQueue:queue.Queue[PortStatusMessage]=\
+            queue.Queue[PortStatusMessage]()
         self.extend(portNames)
         self._threadExit=False
         self._thread:typing.Optional[threading.Thread]=None
@@ -219,11 +235,15 @@ class PortComponents:
         if the file changes!
 
         WARNING: if relying on auto-converting a .elf, this may not downgrade
-            versions properly.  Use .hex files if you want to downgrade versions!
+            versions properly.
+            Use .hex files if you want to downgrade versions!
         """
         timestamp=os.path.getmtime(self.filename)
         size=os.path.getsize(self.filename)
-        if self._ihex is None or self._lastFileReadTimestamp!=timestamp or size!=self._lastFileReadSize:
+        if self._ihex is None \
+            or self._lastFileReadTimestamp!=timestamp \
+            or size!=self._lastFileReadSize:
+            #
             tmpConn=AducConnection()
             self._ihex=tmpConn.loadIhex(self.filename)
             self._lastFileReadSize=size
@@ -303,7 +323,7 @@ class PortComponents:
         elif isinstance(portNames,str):
             portNames=(portNames,)
         stuffToRemove=[]
-        for k in self._components.keys():
+        for k in self._components:
             if k not in portNames:
                 stuffToRemove.append(k)
         for k in stuffToRemove:
@@ -323,7 +343,7 @@ class PortComponents:
             del self._components[portName]
 
 
-class OctopusWindow(Tk,PortComponents):
+class OctopusWindow(tk.Tk,PortComponents):
     """
     UI window for octopus.  Useage:
     OctopusWindow().mainloop()
@@ -333,11 +353,14 @@ class OctopusWindow(Tk,PortComponents):
         postRun:str="",
         ignorePorts:typing.Optional[typing.Iterable[str]]=None):
         """ """
-        PortComponents.__init__(self,self,filename=filename,postRun=postRun,ignorePorts=ignorePorts)
-        Tk.__init__(self)
+        PortComponents.__init__(self,
+            self,filename=filename,postRun=postRun,ignorePorts=ignorePorts)
+        tk.Tk.__init__(self)
         self.title('octopus')
         self.geometry('250x800')
-        self.iconbitmap(os.sep.join((os.path.abspath(__file__).rsplit(os.sep,1)[0],"octopus.ico")))
+        self.iconbitmap(os.sep.join((
+            os.path.abspath(__file__).rsplit(os.sep,1)[0],
+            "octopus.ico")))
         self._pollQueue()
 
     def _pollQueue(self):
@@ -351,9 +374,9 @@ class OctopusWindow(Tk,PortComponents):
                     self.assign(msg.assignPortsList)
                 elif msg.portName in self._components:
                     if msg.progress is not None:
-                        self._components[msg.portName]._setUiProgress(msg.progress)
+                        self._components[msg.portName]._setUiProgress(msg.progress) # pylint: disable=protected-access # noqa: E501
                     if msg.status is not None:
-                        self._components[msg.portName]._setUiStatus(msg.status)
+                        self._components[msg.portName]._setUiStatus(msg.status) # pylint: disable=protected-access # noqa: E501
         except queue.Empty:
             pass # it took us out of the loop, so it did its job
         # run again in a quarter second
@@ -387,18 +410,20 @@ def cmdline(args:typing.Iterable[str])->int:
     if filename is None:
         printhelp=True
     if not printhelp:
-        octopus=OctopusWindow(filename=filename,postRun=postRun,ignorePorts=ignorePorts)
+        octopus=OctopusWindow(
+            filename=filename,postRun=postRun,ignorePorts=ignorePorts)
         octopus.mainloop() # never returns
     if printhelp:
         print('USEAGE:')
         print('  octopus_ui [options] [filename]')
         print('OPTIONS:')
-        print('  -h ............................. this help')
-        print('  --postRun="shell command"  ..... run a shell command after the upload')
-        print('  --ignore=port[,port,...] ....... ignore checking on certain com ports')
-        print('  --ignorePorts=port[,port,...] .. ignore checking on certain com ports')
+        print('  -h ........................ this help')
+        print('  --postRun="cmd" ........... run a shell command after upload')
+        print('  --ignore=port[,port,...] .. ignore checking certain ports')
+        print('  --ignorePorts=port[,port,...]     "                  "')
         return 1
     return 0
+
 
 if __name__=='__main__':
     import sys

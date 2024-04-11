@@ -54,8 +54,9 @@ def replacePoundDefinesInFile(filename:str,
     Opens/creates a c++ file and changes/adds a series of #define statements
 
     :filename: existing data to replace #defines in
-    :quotestrings: enclose passed in str values in "".  (default=True) if False,
-        you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
+    :quotestrings: enclose passed in str values in "".  (default=True)
+        if False, you can do "clever" things like
+        replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
 
     NOTE: Does not enforce all caps names.  That's on you.
     NOTE: Attempts to use existing line endings.
@@ -74,15 +75,22 @@ def replacePoundDefinesInFile(filename:str,
 
 
 def replacePoundDefinesInCode(existingCode:str='',
-    name2val:typing.Optional[typing.Dict[str,typing.Union[int,float,bool,str]]]=None,
+    name2val:typing.Optional[
+        typing.Dict[
+            str,
+            typing.Union[int,float,bool,str]
+        ]
+        ]=None,
     quotestrings=True
     )->str:
     """
-    Optionally takes existing c++ code and changes/adds a series of #define statements
+    Optionally takes existing c++ code and changes/adds
+    a series of #define statements
 
     :existingCode: existing data to replace #defines in
-    :quotestrings: enclose passed in str values in "".  (default=True) if False,
-        you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
+    :quotestrings: enclose passed in str values in "".  (default=True)
+        if False, you can do "clever" things like
+        replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
 
     NOTE: Does not enforce all caps names.  That's on you.
     NOTE: Attempts to use existing line endings.
@@ -155,19 +163,26 @@ def updateVersionInFile(
     filename:str='version.h',
     version:typing.Optional[str]=None,
     buildDate:typing.Union[None,str,datetime.datetime]=datetime.datetime.now(),
-    name2val:typing.Optional[typing.Dict[str,typing.Union[int,float,bool,str]]]=None,
+    name2val:typing.Optional[
+        typing.Dict[
+            str,
+            typing.Union[int,float,bool,str]
+        ]
+        ]=None,
     quotestrings:bool=True):
     """
-    Optionally takes existing c++ code and changes/adds a series of #define statements
+    Optionally takes existing c++ code and changes/adds
+    a series of #define statements
     especially VERSION and/or BUILD_DATE
 
-    This can also do other replacements as well by using replacePoundDefinesInFile()
+    This can also do other replacements as well via replacePoundDefinesInFile()
 
     :existingCode: existing data to replace #defines in
     :version: version to update. can be None.
     :buildDate: build date to update. can be None. default is now()
-    :quotestrings: enclose passed in str values in "".  (default=True) if False,
-        you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
+    :quotestrings: enclose passed in str values in "".  (default=True)
+        if False, you can do "clever" things like
+        replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
         This does not affect VERSION or BUILD_DATE, which are always strings
 
     NOTE: Does not enforce all caps names.  That's on you.
@@ -190,20 +205,27 @@ def updateVersionInCode(
     existingCode:str='',
     version:typing.Optional[str]=None,
     buildDate:typing.Union[None,str,datetime.datetime]=datetime.datetime.now(),
-    name2val:typing.Optional[typing.Dict[str,typing.Union[int,float,bool,str]]]=None,
+    name2val:typing.Optional[
+        typing.Dict[
+            str,
+            typing.Union[int,float,bool,str]
+        ]
+        ]=None,
     quotestrings:bool=True
     )->str:
     """
-    Optionally takes existing c++ code and changes/adds a series of #define statements
+    Optionally takes existing c++ code and changes/adds
+    a series of #define statements
     especially VERSION and/or BUILD_DATE
 
-    This can also do other replacements as well by using replacePoundDefinesInCode()
+    This can also do other replacements as well via replacePoundDefinesInCode()
 
     :existingCode: existing data to replace #defines in
     :version: version to update. can be None.
     :buildDate: build date to update. can be None. default is now()
-    :quotestrings: enclose passed in str values in "".  (default=True) if False,
-        you can do "clever" things like replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
+    :quotestrings: enclose passed in str values in "".  (default=True)
+        if False, you can do "clever" things like
+        replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
         This does not affect VERSION or BUILD_DATE, which are always strings
 
     NOTE: Does not enforce all caps names.  That's on you.
@@ -239,6 +261,7 @@ def cmdline(args:typing.Iterable[str])->int:
 
     :param args: command line arguments (WITHOUT the filename)
     """
+    import sys
     printhelp=False
     filename=''
     version:typing.Optional[str]=None
@@ -283,10 +306,12 @@ def cmdline(args:typing.Iterable[str])->int:
         printhelp=True
     elif filename=='STDIN':
         code=sys.stdin.read()
-        code=updateVersionInCode(code,version,buildDate,name2val,quotestrings) # type: ignore
+        code=updateVersionInCode(
+            code,version,buildDate,name2val,quotestrings) # type: ignore
         print(code)
     else:
-        updateVersionInFile(filename,version,buildDate,name2val,quotestrings) # type: ignore
+        updateVersionInFile(
+            filename,version,buildDate,name2val,quotestrings) # type: ignore
     if '-d' in args:
         if buildDate is None:
             print(datetime.datetime.now().astimezone().isoformat())
@@ -323,10 +348,12 @@ def cmdline(args:typing.Iterable[str])->int:
         print('                          happens after everything is set')
         print('                          can have multiple get_define options')
         print('                          if name not specified, get all')
-        print('                          will not run C preprocesor, but gets value as-is')
-        print('  -v .................... make get_define show just the value(not the name=)')
+        print('                          will not run C preprocesor, but')
+        print('                          gets value as-is')
+        print('  -v .................... make get_define show just the value')
+        print('                          (not the name=)')
         print('FILENAME:')
-        print('  If the filename is STDIN it will read the file bytes from standard in')
+        print('  If the filename is STDIN will pipe file bytes from stdin')
         print('  and dump the result back to standard out')
         return 1
     return 0

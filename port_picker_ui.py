@@ -7,13 +7,12 @@ because it can do things like not pop up the window when it's not necessary
 """
 import typing
 import os
-import time
 import tkinter as tk
 import tkinter.ttk as ttk
 import serial.tools.list_ports # type: ignore
 
 
-class PortPickerWindow(tk.Tk):
+class PortPickerWindow(tk.Toplevel):
     """
     UI window for octopus.  Useage:
     PortPickerWindow().mainloop()
@@ -27,16 +26,22 @@ class PortPickerWindow(tk.Tk):
 
     def __init__(self,
         ignorePorts:typing.Optional[typing.Iterable[str]]=None,
-        caption:str='Select serial port',
-        title:str='Select serial port',
+        caption:typing.Optional[str]=None,
+        title:typing.Optional[str]=None,
         tkMaster:typing.Any=None):
         """ """
-        tk.Tk.__init__(self)
+        if tkMaster is None:
+            tkMaster=tk.Tk()
+        tk.Toplevel.__init__(self,master=tkMaster)
+        if caption is None:
+            caption='Select serial port'
+        if title is None:
+            title='Select serial port'
         self.selectedPort:typing.Optional[str]=None
         self.ignorePorts=ignorePorts
         self.title(title)
-        w=150+7*len(title)
-        h=51
+        w=150#+7*len(title)
+        h=55
         self.geometry(f'{w}x{h}')
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
         self.iconbitmap(os.sep.join((here,"serial.ico")))
@@ -56,10 +61,10 @@ class PortPickerWindow(tk.Tk):
         """
         Get set the prompt label for the port picker
         """
-        return self._label.get()
+        return self.label.get()
     @label.setter
     def label(self,label:str):
-        return self._label.set(label)
+        return self.label.set(label)
 
     def onTimer(self):
         """
