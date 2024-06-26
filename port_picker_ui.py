@@ -30,8 +30,6 @@ class PortPickerWindow(tk.Toplevel):
         title:typing.Optional[str]=None,
         tkMaster:typing.Any=None):
         """ """
-        if tkMaster is None:
-            tkMaster=tk.Tk()
         tk.Toplevel.__init__(self,master=tkMaster)
         if caption is None:
             caption='Select serial port'
@@ -87,7 +85,10 @@ class PortPickerWindow(tk.Toplevel):
             if updateCombobox:
                 self.combo.configure(values=newValues)
             # check again in another second
-            self.after(1000,self.onTimer)
+            try:
+                self.after(1000,self.onTimer)
+            except Exception as e:
+                print(e)
 
     def __del__(self):
         self._refreshTimerKeepGoing=False
