@@ -79,7 +79,7 @@ class WinDevice(PowershellColonObject):
         See also:
         https://learn.microsoft.com/en-us/powershell/module/pnpdevice/enable-pnpdevice?view=windowsserver2022-ps
         """
-        psCmd=f"Enable-PnpDevice -Confirm:$false -InstanceID '{self.InstanceId}'"
+        psCmd=f"Enable-PnpDevice -Confirm:$false -InstanceID '{self.InstanceId}'" # noqa: E501 # pylint: disable=line-too-long
         cmd=['powershell','-Command',psCmd]
         po=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         out,err=po.communicate()
@@ -99,7 +99,7 @@ class WinDevice(PowershellColonObject):
         See also:
         https://learn.microsoft.com/en-us/powershell/module/pnpdevice/disable-pnpdevice?view=windowsserver2022-ps
         """
-        psCmd=f"Disable-PnpDevice -Confirm:$false -InstanceID '{self.InstanceId}'"
+        psCmd=f"Disable-PnpDevice -Confirm:$false -InstanceID '{self.InstanceId}'" # noqa: E501 # pylint: disable=line-too-long
         cmd=['powershell','-Command',psCmd]
         #print('\n'.join(cmd))
         po=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -141,7 +141,7 @@ class WinDevices(PowershellColonObjects):
     @property
     def jsonObj(self)->typing.List[typing.Dict[str,typing.Any]]:
         """
-        This object as a json-compatable object
+        This object as a json-compatible object
         """
         ret:typing.List[typing.Dict[str,typing.Any]]=[]
         for device in self.loaded:
@@ -284,16 +284,16 @@ def cmdline(args:typing.Iterable[str])->int:
 
     :param args: command line arguments (WITHOUT the filename)
     """
-    printhelp=False
+    printHelp=False
     if not args:
-        printhelp=True
+        printHelp=True
     else:
         outFormat='short'
         for arg in args:
             if arg.startswith('-'):
                 arg=[a.strip() for a in arg.split('=',1)]
                 if arg[0] in ['-h','--help']:
-                    printhelp=True
+                    printHelp=True
                 elif arg[0]=='--out':
                     outFormat=arg[1]
                 elif arg[0]=='--ls':
@@ -329,12 +329,12 @@ def cmdline(args:typing.Iterable[str])->int:
                     print('ERR: unknown argument "'+arg[0]+'"')
             else:
                 print('ERR: unknown argument "'+arg+'"')
-    if printhelp:
+    if printHelp:
         print('Usage:')
         print('  winDevices.py [cmd] [options]')
         print('Options:')
         print('   -h ................... print this help')
-        print('   --out=[short|jspn] ... ouput format')
+        print('   --out=[short|json] ... output format')
         print('   --ls[=deviceClass] ... list all devices')
         print('      optionally, only devices of a certain class')
         print('      eg --ls=Ports')

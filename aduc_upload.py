@@ -153,6 +153,7 @@ class AducConnection:
             port=port_picker_ui.askForPort(dontAskIfOnlyOne=True)
             if port is None:
                 raise Exception("There are no com ports.")
+            port=port[0]
         self.port:str=port
         self.baudRate=baudRate
         self.byteSize=byteSize
