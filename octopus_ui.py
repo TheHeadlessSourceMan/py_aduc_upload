@@ -1,5 +1,5 @@
 """
-A flash loader ui capable of flashing a nuber of
+A flash loader ui capable of flashing a number of
 devices to the same image all at the same time!
 """
 import typing
@@ -264,8 +264,8 @@ class PortComponents:
         main loop of the thread
         """
         while not self._threadExit:
-            newlist=[x.name for x in serial.tools.list_ports.comports()]
-            msg=PortStatusMessage(assignPortsList=newlist)
+            newList=[x.name for x in serial.tools.list_ports.comports()]
+            msg=PortStatusMessage(assignPortsList=newList)
             self._messageQueue.put(msg)
             time.sleep(30)
 
@@ -345,7 +345,9 @@ class PortComponents:
 
 class OctopusWindow(tk.Tk,PortComponents):
     """
-    UI window for octopus.  Useage:
+    UI window for octopus.
+
+    Usage:
     OctopusWindow().mainloop()
     """
     def __init__(self,
@@ -389,7 +391,7 @@ def cmdline(args:typing.Iterable[str])->int:
 
     :param args: command line arguments (WITHOUT the filename)
     """
-    printhelp=False
+    printHelp=False
     postRun=''
     filename=None
     ignorePorts:typing.List[str]=[]
@@ -398,23 +400,23 @@ def cmdline(args:typing.Iterable[str])->int:
             av=arg.split('=',1)
             av[0]=av[0].lower()
             if av[0] in ('-h','--help'):
-                printhelp=True
+                printHelp=True
             elif av[0]=='--postrun':
                 postRun=av[1]
             if av[0] in ('--ignore','--ignoreports'):
                 ignorePorts.extend(av[1].replace(' ','').split(','))
             else:
-                printhelp=True
+                printHelp=True
         else:
             filename=arg
     if filename is None:
-        printhelp=True
-    if not printhelp:
+        printHelp=True
+    if not printHelp:
         octopus=OctopusWindow(
             filename=filename,postRun=postRun,ignorePorts=ignorePorts)
         octopus.mainloop() # never returns
-    if printhelp:
-        print('USEAGE:')
+    if printHelp:
+        print('USAGE:')
         print('  octopus_ui [options] [filename]')
         print('OPTIONS:')
         print('  -h ........................ this help')

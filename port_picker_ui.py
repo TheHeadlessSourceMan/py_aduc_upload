@@ -1,5 +1,7 @@
 """
-UI window for octopus.  Useage:
+UI window for octopus.
+
+Usage:
 PortPickerWindow().mainloop()
 
 Generally it's easier to use the askForPort() function instead
@@ -14,7 +16,9 @@ import serial.tools.list_ports # type: ignore
 
 class PortPickerWindow(tk.Toplevel):
     """
-    UI window for octopus.  Useage:
+    UI window for octopus.
+
+    Usage:
     PortPickerWindow().mainloop()
 
     Generally it's easier to use the askForPort() function instead
@@ -186,7 +190,7 @@ def cmdline(args:typing.Iterable[str])->int:
 
     :param args: command line arguments (WITHOUT the filename)
     """
-    printhelp=False
+    printHelp=False
     dontAskIfOnlyOne:bool=False
     askIfZero:bool=False
     ignorePorts:typing.List[str]=[]
@@ -195,7 +199,7 @@ def cmdline(args:typing.Iterable[str])->int:
             av=arg.split('=',1)
             av[0]=av[0].lower()
             if av[0] in ('-h','--help'):
-                printhelp=True
+                printHelp=True
             elif av[0]=='--dna1':
                 dontAskIfOnlyOne=True
             elif av[0]=='--ask0':
@@ -203,15 +207,15 @@ def cmdline(args:typing.Iterable[str])->int:
             elif av[0] in ('--ignore','--ignoreports'):
                 ignorePorts.extend(av[1].replace(' ','').split(','))
             else:
-                printhelp=True
+                printHelp=True
         else:
-            printhelp=True
-    if not printhelp:
+            printHelp=True
+    if not printHelp:
         port=askForPort(dontAskIfOnlyOne,
             ignorePorts=ignorePorts,askIfZero=askIfZero)
         print(port)
-    if printhelp:
-        print('USEAGE:')
+    if printHelp:
+        print('USAGE:')
         print('  port_picker_ui [options]')
         print('OPTIONS:')
         print('  -h ............................. this help')

@@ -7,14 +7,14 @@ This includes the popular ADuC-7020 chip as found in development boards
 like the Olimex ADUC-H7020 and Analog Devices EVAL-ADUC7020
 as well as in many popular embedded devices.
 
-Consider it a more useable form of the offical ARMWSD-UART.exe program.
+Consider it a more useable form of the official ARMWSD-UART.exe program.
 
-General useage:
+General usage:
     ac=AducConnection('COM1')
-    if ac.upload('myprogram.hex'):
+    if ac.upload('my_program.hex'):
         ac.run()
 Or use the shortcut:
-    upload('myprogram.hex','COM1',andRun=True)
+    upload('my_program.hex','COM1',andRun=True)
 
 For more info on the protocol, see:
     https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf
@@ -40,7 +40,7 @@ except ImportError as e:
 
 class AducException(Exception):
     """
-    An irrecoverable issue occourred.
+    An irrecoverable issue occurred.
     (NOTE: most issues are dealt with by returning False from the command)
     """
 
@@ -120,14 +120,14 @@ class AducConnection:
     like the Olimex ADUC-H7020 and Analog Devices EVAL-ADUC7020
     as well as in many popular embedded devices.
 
-    Consider it a more useable form of the offical ARMWSD-UART.exe program.
+    Consider it a more useable form of the official ARMWSD-UART.exe program.
 
-    General useage:
+    General usage:
         ac=AducConnection('COM1')
-        if ac.upload('myprogram.hex'):
+        if ac.upload('my_program.hex'):
             ac.run()
     Or use the shortcut:
-        upload('myprogram.hex','COM1',andRun=True)
+        upload('my_program.hex','COM1',andRun=True)
 
     For more info on the protocol, see:
         https://www.analog.com/media/en/technical-documentation/application-notes/AN-724.pdf
@@ -135,12 +135,12 @@ class AducConnection:
 
     def __init__(self,
         port:typing.Optional[str]=None,
-        baudrate:int=115200,
-        bytesize:int=8,
+        baudRate:int=115200,
+        byteSize:int=8,
         parity:str='N',
-        stopbits:float=1,
-        xonxoff:int=0,
-        rtscts:int=0,
+        stopBits:float=1,
+        xonXoff:int=0,
+        rtsCts:int=0,
         statusCB:StatusCB=stdoutCB.statusCB,
         percentCB:PercentCB=stdoutCB.percentCB
         ):
@@ -154,13 +154,13 @@ class AducConnection:
             if port is None:
                 raise Exception("There are no com ports.")
         self.port:str=port
-        self.baudrate=baudrate
-        self.bytesize=bytesize
+        self.baudRate=baudRate
+        self.byteSize=byteSize
         self.parity=parity
-        self.stopbits=stopbits
+        self.stopBits=stopBits
         self.timeout=0.01
-        self.xonxoff=xonxoff
-        self.rtscts=rtscts
+        self.xonXoff=xonXoff
+        self.rtsCts=rtsCts
         self.numTries:int=3
         self.pageSize=512
         # According to AN-724 you can send up to 250 bytes per packet,
@@ -179,8 +179,8 @@ class AducConnection:
             self.statusCB(AducStatus.CONNECTING)
             self.percentCB(0)
             self._connection=serial.Serial(
-                self.port,self.baudrate,self.bytesize,self.parity,
-                self.stopbits,self.timeout,self.xonxoff,self.rtscts)
+                self.port,self.baudRate,self.byteSize,self.parity,
+                self.stopBits,self.timeout,self.xonXoff,self.rtsCts)
         return self._connection
 
     def disconnect(self):
@@ -239,17 +239,17 @@ class AducConnection:
         Send a specified command packet to the device
         """
         address=self._remapAddress(address)
-        packet_len=len(data)+5 # 1byte command + 4byte address + the data
-        if packet_len>255:
+        packetLen=len(data)+5 # 1byte command + 4byte address + the data
+        if packetLen>255:
             raise Exception('Packet size too large!')
         magic:bytes=bytes([0x07,0x0E])
         addr_bytes:bytes=address.to_bytes(
             length=4,byteorder="big",signed=False)
-        sendbuf=bytearray(addr_bytes)
-        sendbuf.insert(0,command.encode('ascii')[0])
-        sendbuf.insert(0,packet_len)
-        sendbuf.extend(data)
-        checksum=self._checksum(sendbuf)
+        sendBuf=bytearray(addr_bytes)
+        sendBuf.insert(0,command.encode('ascii')[0])
+        sendBuf.insert(0,packetLen)
+        sendBuf.extend(data)
+        checksum=self._checksum(sendBuf)
         ser=self.connect()
         # dispose of any lingering incoming junk
         response=b'x'
@@ -257,7 +257,7 @@ class AducConnection:
             response=ser.read(1)
         # send it
         ser.write(magic)
-        ser.write(sendbuf)
+        ser.write(sendBuf)
         ser.write(checksum)
         while not response:
             response=ser.read(1)
@@ -395,8 +395,8 @@ class AducConnection:
         """
         Load an intel .hex file
         """
-        extn=filename.rsplit('.',1)[-1].lower()
-        if extn=='elf':
+        extension=filename.rsplit('.',1)[-1].lower()
+        if extension=='elf':
             filename=self._elfFileToIhexFile(filename)
         return intelhex.IntelHex(filename)
 
@@ -477,9 +477,9 @@ class AducConnection:
             if not postRun:
                 postRun=None
         self.waitForDevice()
-        totalbytes=0
+        totalBytes=0
         for start,stop in ihex.segments():
-            totalbytes+=stop-start
+            totalBytes+=stop-start
         # erase
         for start,stop in ihex.segments():
             self.erase(start,stop-start)
@@ -499,7 +499,7 @@ class AducConnection:
                 ret=self.run()
             elif andReset:
                 ret=self.reset()
-            # we resetted, so don't consider update mode "connected" anymore
+            # we have reset, so don't consider update mode "connected" anymore
             self._connectionEstablished=False
         if ret and (postRun is not None):
             # run whatever the postRun shell command is
@@ -646,7 +646,7 @@ def cmdline(args:typing.Iterable[str])->int:
     """
     import sys
     didSomething=False
-    printhelp=False
+    printHelp=False
     filename=''
     port=None
     andVerify=True
@@ -660,7 +660,7 @@ def cmdline(args:typing.Iterable[str])->int:
             av=arg.split('=',1)
             av[0]=av[0].lower()
             if av[0] in ('-h','--help'):
-                printhelp=True
+                printHelp=True
             elif av[0]=='--port':
                 port=av[1].strip()
             elif av[0]=='--verify':
@@ -674,10 +674,10 @@ def cmdline(args:typing.Iterable[str])->int:
             elif av[0] in ('--masserase','--eraseall'):
                 massEraseFirst=True
             else:
-                printhelp=True
+                printHelp=True
         else:
             filename=arg
-    if not printhelp and (filename or massEraseFirst):
+    if not printHelp and (filename or massEraseFirst):
         print()
         aduc=AducConnection(port)
         if massEraseFirst:
@@ -694,14 +694,14 @@ def cmdline(args:typing.Iterable[str])->int:
                     andReset=andReset,
                     postRun=postRun)
         didSomething=True
-    if printhelp or not didSomething:
-        print('USEAGE:')
+    if printHelp or not didSomething:
+        print('USAGE:')
         print('  py_aduc_upload [options] [filename]')
         print('OPTIONS:')
         print('  -h ............... this help')
         print('  --port= .......... serial port')
         print('         (what your os calls it, eg "COM1" or "/dev/ttyS0")')
-        print('         if not specified, will take whatever port is availble')
+        print('         if unspecified, will take whatever port is available')
         print('         or ask if there is more than one')
         print('  --run[=t/f]  ..... auto-run after uploading (default=f)')
         print('  --reset[=t/f]  ... reset device after uploading (default=f)')

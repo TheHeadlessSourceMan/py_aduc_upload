@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Programatically update #define's
+Programmatically update #define's
 """
 import typing
 import os
@@ -48,13 +48,13 @@ def getPoundDefines(
 
 def replacePoundDefinesInFile(filename:str,
     name2val:typing.Dict[str,typing.Union[int,float,bool,str]],
-    quotestrings=True
+    quoteStrings=True
     )->None:
     """
     Opens/creates a c++ file and changes/adds a series of #define statements
 
     :filename: existing data to replace #defines in
-    :quotestrings: enclose passed in str values in "".  (default=True)
+    :quoteStrings: enclose passed in str values in "".  (default=True)
         if False, you can do "clever" things like
         replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
 
@@ -69,7 +69,7 @@ def replacePoundDefinesInFile(filename:str,
             code=f.read().decode('ascii')
     except FileNotFoundError:
         pass
-    code=replacePoundDefinesInCode(code,name2val,quotestrings)
+    code=replacePoundDefinesInCode(code,name2val,quoteStrings)
     with open(filename,'wb') as f:
         f.write(code.encode('ascii'))
 
@@ -81,14 +81,14 @@ def replacePoundDefinesInCode(existingCode:str='',
             typing.Union[int,float,bool,str]
         ]
         ]=None,
-    quotestrings=True
+    quoteStrings=True
     )->str:
     """
     Optionally takes existing c++ code and changes/adds
     a series of #define statements
 
     :existingCode: existing data to replace #defines in
-    :quotestrings: enclose passed in str values in "".  (default=True)
+    :quoteStrings: enclose passed in str values in "".  (default=True)
         if False, you can do "clever" things like
         replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
 
@@ -98,8 +98,8 @@ def replacePoundDefinesInCode(existingCode:str='',
     """
     if name2val is None:
         return existingCode
-    def fixval(val):
-        if quotestrings and isinstance(val,str):
+    def fixValue(val):
+        if quoteStrings and isinstance(val,str):
             return cppQuote(val)
         return str(val)
     newData:typing.List[str]=[]
@@ -112,13 +112,13 @@ def replacePoundDefinesInCode(existingCode:str='',
         data=existingCode.split('\n')
     for lineNo,line in enumerate(data):
         if line.startswith('#define'):
-            lineparts=line.split(maxsplit=3)
-            name=lineparts[1].split('(',1)[0]
+            lineParts=line.split(maxsplit=3)
+            name=lineParts[1].split('(',1)[0]
             replacedLine=False
             for k,v in name2val.items():
                 name2=k.split('(',1)[0].strip()
                 if name==name2:
-                    newData.append(f'#define {k} {fixval(v)}')
+                    newData.append(f'#define {k} {fixValue(v)}')
                     replacedLine=True
                     replaced.add(k)
             if not replacedLine:
@@ -133,16 +133,16 @@ def replacePoundDefinesInCode(existingCode:str='',
         # didn't find a natural place to insert more #define's
         # try to stuff it after any head comments
         insertAt=0
-        blockcomment=False
+        blockComment=False
         for lineNo,line in enumerate(data):
             line=line.strip()
             if not line:
                 pass
             if line.startswith('/*'):
-                blockcomment=True
+                blockComment=True
             elif line.startswith('//'):
                 insertAt=lineNo+1
-            elif blockcomment:
+            elif blockComment:
                 if line.endswith('*/'):
                     insertAt=lineNo+1
             else:
@@ -150,7 +150,7 @@ def replacePoundDefinesInCode(existingCode:str='',
     # add everything not found
     for k,v in name2val.items():
         if k not in replaced:
-            newData.insert(insertAt,f'#define {k} {fixval(v)}')
+            newData.insert(insertAt,f'#define {k} {fixValue(v)}')
     # add terminating newline
     if not newData or newData[-1].strip():
         newData.append('')
@@ -169,7 +169,7 @@ def updateVersionInFile(
             typing.Union[int,float,bool,str]
         ]
         ]=None,
-    quotestrings:bool=True):
+    quoteStrings:bool=True):
     """
     Optionally takes existing c++ code and changes/adds
     a series of #define statements
@@ -180,7 +180,7 @@ def updateVersionInFile(
     :existingCode: existing data to replace #defines in
     :version: version to update. can be None.
     :buildDate: build date to update. can be None. default is now()
-    :quotestrings: enclose passed in str values in "".  (default=True)
+    :quoteStrings: enclose passed in str values in "".  (default=True)
         if False, you can do "clever" things like
         replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
         This does not affect VERSION or BUILD_DATE, which are always strings
@@ -196,7 +196,7 @@ def updateVersionInFile(
             code=f.read().decode('ascii')
     except FileNotFoundError:
         pass
-    code=updateVersionInCode(code,version,buildDate,name2val,quotestrings)
+    code=updateVersionInCode(code,version,buildDate,name2val,quoteStrings)
     with open(filename,'wb') as f:
         f.write(code.encode('ascii'))
 
@@ -211,7 +211,7 @@ def updateVersionInCode(
             typing.Union[int,float,bool,str]
         ]
         ]=None,
-    quotestrings:bool=True
+    quoteStrings:bool=True
     )->str:
     """
     Optionally takes existing c++ code and changes/adds
@@ -223,7 +223,7 @@ def updateVersionInCode(
     :existingCode: existing data to replace #defines in
     :version: version to update. can be None.
     :buildDate: build date to update. can be None. default is now()
-    :quotestrings: enclose passed in str values in "".  (default=True)
+    :quoteStrings: enclose passed in str values in "".  (default=True)
         if False, you can do "clever" things like
         replacePoundDefines('x.h','MY_MACRO(x)':'printf("%d",x)')
         This does not affect VERSION or BUILD_DATE, which are always strings
@@ -237,7 +237,7 @@ def updateVersionInCode(
     else:
         name2val=dict(name2val)
     if version is not None:
-        if not quotestrings:
+        if not quoteStrings:
             # quote it ourselves
             version=cppQuote(version)
         name2val['VERSION']=version
@@ -248,11 +248,11 @@ def updateVersionInCode(
                 import pytz
                 tz=pytz.timezone(tz)
             buildDate=buildDate.astimezone(tz).isoformat()
-        if not quotestrings:
+        if not quoteStrings:
             # quote it ourselves
             buildDate=cppQuote(buildDate)
         name2val['BUILD_DATE']=buildDate
-    return replacePoundDefinesInCode(existingCode,name2val,quotestrings)
+    return replacePoundDefinesInCode(existingCode,name2val,quoteStrings)
 
 
 def cmdline(args:typing.Iterable[str])->int:
@@ -262,12 +262,12 @@ def cmdline(args:typing.Iterable[str])->int:
     :param args: command line arguments (WITHOUT the filename)
     """
     import sys
-    printhelp=False
+    printHelp=False
     filename=''
     version:typing.Optional[str]=None
     buildDate:typing.Union[None,str,datetime.datetime]=None
     name2val:typing.Dict[str,str]={}
-    quotestrings:bool=False
+    quoteStrings:bool=False
     justValue=False
     definesToGet:typing.List[str]=[]
     for arg in args:
@@ -275,7 +275,7 @@ def cmdline(args:typing.Iterable[str])->int:
             av=arg.split('=',1)
             avl=av[0].lower()
             if avl=='-h':
-                printhelp=True
+                printHelp=True
             elif avl=='-d':
                 pass # deal with this later
             if avl=='-v':
@@ -299,19 +299,19 @@ def cmdline(args:typing.Iterable[str])->int:
                 else:
                     name2val[av[0][2:]]='true'
             else:
-                printhelp=True
+                printHelp=True
         else:
             filename=arg
     if not filename:
-        printhelp=True
+        printHelp=True
     elif filename=='STDIN':
         code=sys.stdin.read()
         code=updateVersionInCode(
-            code,version,buildDate,name2val,quotestrings) # type: ignore
+            code,version,buildDate,name2val,quoteStrings) # type: ignore
         print(code)
     else:
         updateVersionInFile(
-            filename,version,buildDate,name2val,quotestrings) # type: ignore
+            filename,version,buildDate,name2val,quoteStrings) # type: ignore
     if '-d' in args:
         if buildDate is None:
             print(datetime.datetime.now().astimezone().isoformat())
@@ -319,7 +319,7 @@ def cmdline(args:typing.Iterable[str])->int:
             print(buildDate)
         else:
             print(buildDate.astimezone().isoformat())
-        printhelp=False
+        printHelp=False
     if definesToGet:
         defines=getPoundDefines(filename)
         if '*' in definesToGet:
@@ -334,8 +334,8 @@ def cmdline(args:typing.Iterable[str])->int:
                 print(f"{val}")
             else:
                 print(f"{item} = {val}")
-    if printhelp:
-        print('USEAGE:')
+    if printHelp:
+        print('USAGE:')
         print('  update_pound_defines [options] [filename]')
         print('OPTIONS:')
         print('  -h .................... this help')
@@ -348,7 +348,7 @@ def cmdline(args:typing.Iterable[str])->int:
         print('                          happens after everything is set')
         print('                          can have multiple get_define options')
         print('                          if name not specified, get all')
-        print('                          will not run C preprocesor, but')
+        print('                          will not run C preprocessor, but')
         print('                          gets value as-is')
         print('  -v .................... make get_define show just the value')
         print('                          (not the name=)')

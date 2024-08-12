@@ -12,7 +12,7 @@ def processUsingPort(port:str)->str:
     NOTE: Works on Windows only
     """
     port=port[3:]
-    def queryall(portType:str):
+    def queryAll(portType:str):
         try:
             for n in range(1000):
                 dev=f'\\Device\\{portType}{n}'
@@ -21,9 +21,9 @@ def processUsingPort(port:str)->str:
                 print(p)
         except Exception as e:
             print(e)
-    queryall('Serial')
-    queryall('VCP')
-    queryall('Silabser')
+    queryAll('Serial')
+    queryAll('VCP')
+    queryAll('Silabser')
 
 
 def processes(processName:str='PuTTY.exe'):
@@ -68,6 +68,7 @@ def enumDevices(deviceClass:str)->typing.List[typing.Dict[str,str]]:
             win32file.QueryDosDevice(vals['InstanceID'])) # pylint: disable=c-extension-no-member # noqa: E501
         ret.append(vals)
     return ret
+
 
 if __name__=='__main__':
     print(enumDevices(PORT_DEVICE_CLASS))

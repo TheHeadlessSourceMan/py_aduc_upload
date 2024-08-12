@@ -4,7 +4,7 @@ Info and utils about windows devices
 import typing
 import time
 import subprocess
-from winDevices.powershellColonObjects import (
+from py_aduc_upload.powershellColonObjects import (
     PowershellColonObject,PowershellColonObjects)
 
 class WinDevice(PowershellColonObject):
