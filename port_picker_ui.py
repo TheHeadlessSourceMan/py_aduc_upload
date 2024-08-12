@@ -84,6 +84,8 @@ class PortPickerWindow(tk.Toplevel):
                 try:
                     for v in oldValues:
                         _=newValues.index(v)
+                    for v in newValues:
+                        _=oldValues.index(v)
                 except IndexError:
                     updateCombobox=True
             if updateCombobox:
