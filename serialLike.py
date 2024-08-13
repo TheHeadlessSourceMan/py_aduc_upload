@@ -37,3 +37,8 @@ class SerialLike(typing.Protocol):
         """
         close the port
         """
+
+    def flush(self):
+        """
+        flush the write buffer
+        """

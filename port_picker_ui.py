@@ -239,6 +239,8 @@ def askForPort(
         for portName in portNames:
             # open the device and ask for its name
             print(f'Attempting to query port {portName} (baud={baud})')
+            if isinstance(portName,tuple):
+                portName=portName[0]
             try:
                 openPort=Serial(portName,baud,
                     timeout=2.0,inter_byte_timeout=0.01)
