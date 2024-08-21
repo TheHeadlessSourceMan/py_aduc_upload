@@ -8,17 +8,21 @@ Generally it's easier to use the askForPort() function instead
 because it can do things like not pop up the window when it's not necessary
 """
 import typing
-import time
 import os
 import tkinter as tk
 import tkinter.ttk as ttk
-from serial import Serial,SerialException # type: ignore
+from serial import Serial # type: ignore
 import serial.tools.list_ports # type: ignore
 from py_aduc_upload import SerialLike,PortValidationFunction
 
 
 FoundPort=typing.Tuple[
-    str,typing.Optional[SerialLike],typing.Any]
+    str,typing.Optional[SerialLike],typing.Optional[typing.Any]]
+
+_SerialPortEnumeratorFn=typing.Callable[[],typing.Iterable[FoundPort]]
+SerialPortEnumerator=typing.Union[
+    _SerialPortEnumeratorFn,
+    typing.Tuple[_SerialPortEnumeratorFn,typing.Dict[str,typing.Any]]]
 
 class PortPickerWindow(tk.Toplevel):
     """
@@ -32,7 +36,7 @@ class PortPickerWindow(tk.Toplevel):
     """
 
     # ports list shared between all instances
-    _ports:typing.Optional[typing.List[str]]=None
+    _ports:typing.Optional[typing.List[FoundPort]]=None
 
     def __init__(self,
         ignorePorts:typing.Optional[typing.Iterable[str]]=None,
@@ -52,6 +56,7 @@ class PortPickerWindow(tk.Toplevel):
         self.validationCallbackParams=validationCallbackParams
         self.selectedPort:typing.Optional[str]=None
         self.ignorePorts=ignorePorts
+        self.enumerators=[self.systemComPortEnumerator]
         self.title(title)
         w=150#+7*len(title)
         h=55
@@ -59,9 +64,10 @@ class PortPickerWindow(tk.Toplevel):
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
         self.iconbitmap(os.sep.join((here,"serial.ico")))
         self.comboboxValue=tk.StringVar()
-        label=ttk.Label(self,text=caption)
+        self._label=tk.StringVar(value=caption)
+        label=ttk.Label(self,textvariable=self._label)
         label.pack()
-        values=[p for p in self.validPorts]
+        values=[p[0] for p in self.validPorts]
         self.combo=ttk.Combobox(self,
             textvariable=self.comboboxValue,values=values)
         self.combo.pack()
@@ -74,18 +80,18 @@ class PortPickerWindow(tk.Toplevel):
         """
         Get set the prompt label for the port picker
         """
-        return self.label.get()
+        return self._label.get()
     @label.setter
     def label(self,label:str):
-        return self.label.set(label)
+        return self._label.set(label)
 
-    def onTimer(self):
+    def onTimer(self)->None:
         """
         Will re-check the ports every second
         """
         if self._refreshTimerKeepGoing:
-            oldValues:typing.List[str]=self.getValidPorts(False)
-            newValues:typing.List[str]=self.getValidPorts(True)
+            oldValues:typing.List[FoundPort]=list(self.getValidPorts(False))
+            newValues:typing.List[FoundPort]=list(self.getValidPorts(True))
             # only want to update the combo if the port list changes
             # to minimize ui disruption (losing mouse focus, etc)
             updateCombobox=False
@@ -100,7 +106,7 @@ class PortPickerWindow(tk.Toplevel):
                 except IndexError:
                     updateCombobox=True
             if updateCombobox:
-                self.combo.configure(values=newValues)
+                self.combo.configure(values=[port[0] for port in newValues])
             # check again in another second
             try:
                 self.after(1000,self.onTimer)
@@ -119,17 +125,41 @@ class PortPickerWindow(tk.Toplevel):
         self.destroy()
 
     @classmethod
-    def refreshPorts(cls)->None:
+    def systemComPortEnumerator(cls)->typing.Iterable[FoundPort]:
+        """
+        Enumerate the names of system com ports
+        """
+        return [(str(port).strip().split(maxsplit=1)[0],None,None)
+            for port in serial.tools.list_ports.comports()]
+
+    @classmethod
+    def refreshPorts(cls,
+        enumerators:typing.Optional[typing.Iterable[SerialPortEnumerator]]=None
+        )->None:
         """
         refresh the global ports list
 
         NOTE: this is a class method, so the ports list can
         be inspected without creating a TK window
         """
+        if enumerators is None:
+            enumerators=[PortPickerWindow.systemComPortEnumerator]
         cls._ports=[]
-        for port in serial.tools.list_ports.comports():
-            port=str(port).strip().split(maxsplit=1)[0]
-            cls._ports.append(port)
+        portNames=set()
+        for enumerator in enumerators:
+            enumeratorParams={}
+            if isinstance(enumerator,tuple):
+                enumeratorParams=enumerator[1] # noqa: E501 # pylint: disable=line-too-long,unsubscriptable-object # I don't know why it thinks this is unsubscriptable when I do a specific type check to ensure it is a tuple
+                enumerator=enumerator[0] # noqa: E501 # pylint: disable=line-too-long,unsubscriptable-object
+            for port in enumerator(**enumeratorParams):
+                portName=port[0]
+                if port[1] is not None:
+                    portName=port[1].name
+                    if hasattr(port[1],"port"):
+                        portName=port[1].port
+                if portName not in portNames:
+                    portNames.add(portName)
+                    cls._ports.append(port)
 
     @classmethod
     def getPorts(cls,
@@ -137,7 +167,10 @@ class PortPickerWindow(tk.Toplevel):
         forceRefresh:bool=False,
         validationCallback:typing.Optional[PortValidationFunction]=None,
         validationCallbackParams:typing.Optional[
-            typing.Dict[str,typing.Any]]=None
+            typing.Dict[str,typing.Any]]=None,
+        enumerators:typing.Optional[
+            typing.Iterable[SerialPortEnumerator]]=None,
+        baudRate:int=115200
         )->typing.Iterable[FoundPort]:
         """
         get a list of available ports
@@ -148,25 +181,31 @@ class PortPickerWindow(tk.Toplevel):
         NOTE: this is a class method, so the ports list can
         be inspected without creating a TK window
         """
+        if enumerators is None:
+            enumerators=(cls.systemComPortEnumerator,)
         if forceRefresh or cls._ports is None:
-            cls.refreshPorts()
-        if ignorePorts is None or not ignorePorts:
-            return cls._ports
-        ports=[]
+            cls.refreshPorts(enumerators)
+        if ignorePorts is None:
+            ignorePorts=[]
+        ports:typing.List[FoundPort]=[]
         if cls._ports is not None:
             for port in cls._ports:
-                device=None
                 info=None
-                if port in ignorePorts:
+                if port[0] in ignorePorts:
                     continue
                 if validationCallback is not None:
                     if validationCallbackParams is None:
                         validationCallbackParams={}
-                    device=Serial(port)
-                    info=validationCallback(device,**validationCallbackParams)
+                    if port[1] is None:
+                        port=(
+                            port[0],
+                            Serial(port[0],baudrate=baudRate),
+                            port[2])
+                    info=validationCallback(
+                        port[1],**validationCallbackParams) # type: ignore
                     if info is None:
                         continue
-                ports.append((port,device,info))
+                ports.append(port)
         return ports
 
     @property
@@ -187,7 +226,8 @@ class PortPickerWindow(tk.Toplevel):
 
         :forceRefresh: always refresh the ports list
         """
-        return self.getPorts(self.ignorePorts,forceRefresh)
+        return self.getPorts(
+            self.ignorePorts,forceRefresh,enumerators=self.enumerators)
 
 
 def askForPort(
@@ -195,14 +235,15 @@ def askForPort(
     ignorePorts:typing.Optional[typing.Iterable[str]]=None,
     forceRefresh:bool=False,
     askIfZero:bool=False,
-    baud:int=115200,
+    baudRate:int=115200,
     tkMaster:typing.Any=None,
     portPickerCaption:typing.Optional[str]=None,
     validatePortFn:typing.Optional[
         PortValidationFunction
         ]=None,
     validatePortParams:typing.Optional[typing.Dict[str,typing.Any]]=None,
-    )->typing.Optional[FoundPort]:
+    enumerators:typing.Optional[typing.Iterable[SerialPortEnumerator]]=None
+    )->typing.Tuple[str,typing.Optional[SerialLike],typing.Any]:
     """
     optionally pop up a dialog to allow the user to select a serial port
 
@@ -217,64 +258,59 @@ def askForPort(
     :validatePortFn: a validation function that discerns a port we are
         looking for vs other ports that are just "there"
     :validatePortParams: extra params to pass to validatePortFn(serial,...)
+    :enumerators: functions that can enumerate serial ports
 
     :return: (port name, already open port, device info)
         where any could be None
     """
+    if enumerators is None:
+        enumerators=(PortPickerWindow.systemComPortEnumerator,)
     portName=None
-    openPort=None
-    deviceInfo=None
+    selectedPort:FoundPort=\
+        ('',None,None)
     if validatePortParams is None:
         validatePortParams={}
-    portsPlus:typing.Dict[str,
-        typing.Tuple[SerialLike,typing.Any]]={}
     if not ignorePorts:
         ignorePorts=[]
     else:
         ignorePorts=list(ignorePorts)
-    portNames:typing.List[str]=[p for p in
-        PortPickerWindow.getPorts(ignorePorts,forceRefresh)]
-    # do a second pass to validate each port
-    if validatePortFn is not None:
-        for portName in portNames:
-            # open the device and ask for its name
-            print(f'Attempting to query port {portName} (baud={baud})')
-            if isinstance(portName,tuple):
-                portName=portName[0]
-            try:
-                openPort=Serial(portName,baud,
-                    timeout=2.0,inter_byte_timeout=0.01)
-            except SerialException:
-                print('  busy.')
-                continue
-            while not openPort.is_open:
-                time.sleep(0.1)
-            info=validatePortFn(openPort,**validatePortParams)
-            if info is not None:
-                portsPlus[portName]=(openPort,info)
-            else:
-                ignorePorts.append(portName)
-                openPort.close()
-        portNames=list(portsPlus.keys())
-    if not portNames and not askIfZero:
-        return (None,None,None)
-    if len(portNames)==1 and dontAskIfOnlyOne:
-        portName=portNames[0]
+    ports=list(PortPickerWindow.getPorts(
+        ignorePorts,forceRefresh,
+        validationCallback=validatePortFn,
+        validationCallbackParams=validatePortParams,
+        enumerators=enumerators,
+        baudRate=baudRate))
+    if not ports and not askIfZero:
+        return selectedPort
+    if len(ports)==1 and dontAskIfOnlyOne:
+        selectedPort=(ports[0][0],ports[0][1],None)
     else:
         ppw=PortPickerWindow(
             ignorePorts,portPickerCaption,tkMaster=tkMaster)
         ppw.wait_window(ppw)
         portName=ppw.selectedPort
-    if portsPlus and portName is not None:
-        openPort,deviceInfo=portsPlus.get(portName,(None,None))
-        if openPort is not None:
-            del portsPlus[portName]
-        for port,_ in portsPlus.values():
-            port.close()
-    if openPort is not None:
-        openPort.reset_input_buffer()
-        openPort.reset_output_buffer()
-    return (portName,openPort,deviceInfo)
+        if portName is None:
+            return selectedPort
+        # find which port they selected
+        selectedPort=(portName,None,None)
+        for port in ports:
+            if port[1] is not None:
+                if hasattr(port[1],"port") \
+                    and port[1].port==portName:
+                    if selectedPort[1] is None:
+                        selectedPort=port
+                    continue
+                elif port[1].name==portName:
+                    if selectedPort[1] is None:
+                        selectedPort=port
+                    continue
+                # not the one we're after, so be clean and close it
+                port[1].close()
+    # clear the io for good measure
+    if selectedPort[1] is not None:
+        selectedPort[1].reset_input_buffer()
+        selectedPort[1].reset_output_buffer()
+    return selectedPort
 
 
 def cmdline(args:typing.Iterable[str])->int:
@@ -306,7 +342,9 @@ def cmdline(args:typing.Iterable[str])->int:
     if not printHelp:
         port=askForPort(dontAskIfOnlyOne,
             ignorePorts=ignorePorts,askIfZero=askIfZero)
-        if port[2]:
+        if port is None:
+            print(None)
+        elif port[2]:
             print(f'{port[0]} = {port[2]}')
         else:
             print(port[0])

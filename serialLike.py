@@ -12,6 +12,10 @@ class SerialLike(typing.Protocol):
     is_open:bool
     in_waiting:int
     out_waiting:int
+    baudrate:int
+
+    def __init__(self,port:str,baudRate:int):
+        pass
 
     def reset_input_buffer(self):
         """
