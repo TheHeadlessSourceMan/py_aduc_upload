@@ -205,6 +205,11 @@ class PortPickerWindow(tk.Toplevel):
                         port[1],**validationCallbackParams) # type: ignore
                     if info is None:
                         continue
+                    if port[2] is None:
+                        port=(
+                            port[0],
+                            port[1],
+                            info)
                 ports.append(port)
         return ports
 
@@ -283,7 +288,7 @@ def askForPort(
     if not ports and not askIfZero:
         return selectedPort
     if len(ports)==1 and dontAskIfOnlyOne:
-        selectedPort=(ports[0][0],ports[0][1],None)
+        selectedPort=ports[0]
     else:
         ppw=PortPickerWindow(
             ignorePorts,portPickerCaption,tkMaster=tkMaster)
