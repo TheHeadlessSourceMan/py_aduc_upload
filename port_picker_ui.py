@@ -105,6 +105,8 @@ class PortPickerWindow(tk.Toplevel):
                         _=oldValues.index(v)
                 except IndexError:
                     updateCombobox=True
+                except ValueError:
+                    updateCombobox=True
             if updateCombobox:
                 self.combo.configure(values=[port[0] for port in newValues])
             # check again in another second
