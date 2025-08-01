@@ -8,11 +8,23 @@ class SerialLike(typing.Protocol):
     """
     Anything that looks and smells like a pyserial Serial object
     """
-    name:str
     is_open:bool
     in_waiting:int
     out_waiting:int
-    baudrate:int
+
+    @property
+    def name(self)->str:
+        """
+        Serial device name eg, "COM5"
+        """
+        raise NotImplementedError()
+
+    @property
+    def baudrate(self)->int:
+        """
+        The current baud rate
+        """
+        raise NotImplementedError()
 
     def __init__(self,port:str,baudRate:int):
         pass
@@ -27,15 +39,17 @@ class SerialLike(typing.Protocol):
         Clear any pending write data
         """
 
-    def write(self,data:bytes):
+    def write(self,data:bytes)->int:
         """
         Write data
         """
+        raise NotImplementedError()
 
     def read(self,n:typing.Optional[int]=None)->bytes:
         """
         Read data
         """
+        raise NotImplementedError()
 
     def close(self):
         """

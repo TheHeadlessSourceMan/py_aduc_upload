@@ -118,7 +118,7 @@ class PortPickerWindow(tk.Toplevel):
     def __del__(self):
         self._refreshTimerKeepGoing=False
 
-    def onSelect(self,*_):
+    def onSelect(self,*_:typing.ParamSpecArgs)->None:
         """
         called when a port is selected in the combo box
         """
@@ -199,10 +199,18 @@ class PortPickerWindow(tk.Toplevel):
                     if validationCallbackParams is None:
                         validationCallbackParams={}
                     if port[1] is None:
-                        port=(
-                            port[0],
-                            Serial(port[0],baudrate=baudRate),
-                            port[2])
+                        try:
+                            port=(
+                                port[0],
+                                Serial(port[0],baudrate=baudRate),
+                                port[2])
+                        except Exception as e:
+                            if str(e).find('Access is denied.')>=0:
+                                print(f'Port {port[0]} in use. Skipping.')
+                            else:
+                                print(f'Exception while accessing port {port[0]}')
+                                print(e)
+                            continue
                     info=validationCallback(
                         port[1],**validationCallbackParams) # type: ignore
                     if info is None:
@@ -303,7 +311,7 @@ def askForPort(
         for port in ports:
             if port[1] is not None:
                 if hasattr(port[1],"port") \
-                    and port[1].port==portName:
+                    and port[1].port==portName: # type: ignore
                     if selectedPort[1] is None:
                         selectedPort=port
                     continue
@@ -314,7 +322,7 @@ def askForPort(
                 # not the one we're after, so be clean and close it
                 port[1].close()
     # clear the io for good measure
-    if selectedPort[1] is not None:
+    if selectedPort[1] is not None and selectedPort[1].is_open:
         selectedPort[1].reset_input_buffer()
         selectedPort[1].reset_output_buffer()
     return selectedPort
@@ -349,9 +357,7 @@ def cmdline(args:typing.Iterable[str])->int:
     if not printHelp:
         port=askForPort(dontAskIfOnlyOne,
             ignorePorts=ignorePorts,askIfZero=askIfZero)
-        if port is None:
-            print(None)
-        elif port[2]:
+        if port[2]:
             print(f'{port[0]} = {port[2]}')
         else:
             print(port[0])

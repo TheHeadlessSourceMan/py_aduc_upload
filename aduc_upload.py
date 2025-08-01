@@ -328,7 +328,8 @@ class AducConnection:
         return ret
 
     def write(self,address:int,data:bytes,
-        andVerify=True,andRun=False,andReset=False,noErase=False
+        andVerify:bool=True,andRun:bool=False,
+        andReset:bool=False,noErase:bool=False
         )->bool:
         """
         Write some data to the device.
@@ -437,7 +438,8 @@ class AducConnection:
 
     def uploadData(self,
         data:bytes,decodeAs:typing.Optional[str]=None,
-        andVerify=True,andRun=False,andReset=False)->bool:
+        andVerify:bool=True,andRun:bool=False,andReset:bool=False
+        )->bool:
         """
         Upload raw data or intel hex data to the device
 
@@ -612,9 +614,9 @@ class AducConnection:
 def upload(
     filename:str,
     port:str='COM6',
-    andVerify=True,
-    andRun=False,
-    andReset=False
+    andVerify:bool=True,
+    andRun:bool=False,
+    andReset:bool=False
     )->bool:
     """
     shortcut to use AducConnection to upload
@@ -627,9 +629,9 @@ def upload(
 def uploadBytes(
     data:bytes,
     port:str='COM6',
-    andVerify=True,
-    andRun=False,
-    andReset=False
+    andVerify:bool=True,
+    andRun:bool=False,
+    andReset:bool=False
     )->bool:
     """
     shortcut to use AducConnection to upload

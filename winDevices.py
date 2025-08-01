@@ -346,6 +346,8 @@ def cmdline(args:typing.Iterable[str])->int:
         print('   --off=[comX|instanceId] ..... turn a device off')
         print('   --restart=[comX|instanceId] . restart a device')
         print('   --properties=[comX|instanceId] ..... show device properties')
+        return -1
+    return 0
 
 
 if __name__=='__main__':
