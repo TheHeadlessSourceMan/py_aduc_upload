@@ -48,4 +48,4 @@ include = [ "py_aduc_upload"]
 exclude = ["py_aduc_upload.tests*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.ico"]
+"*" = ["*.ico","*.png"]

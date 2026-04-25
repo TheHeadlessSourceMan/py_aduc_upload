@@ -62,7 +62,9 @@ class PortPickerWindow(tk.Toplevel):
         h=55
         self.geometry(f'{w}x{h}')
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
-        self.iconbitmap(os.sep.join((here,"serial.ico")))
+        self._iconHandle=tk.PhotoImage(file=os.sep.join((here,"serial.png")))
+        self.iconphoto(False,self._iconHandle)
+        #self.iconbitmap(os.sep.join((here,"serial.ico")))
         self.comboboxValue=tk.StringVar()
         self._label=tk.StringVar(value=caption)
         label=ttk.Label(self,textvariable=self._label)
@@ -147,7 +149,7 @@ class PortPickerWindow(tk.Toplevel):
         if enumerators is None:
             enumerators=[PortPickerWindow.systemComPortEnumerator]
         cls._ports=[]
-        portNames=set()
+        portNames:typing.Set[str]=set()
         for enumerator in enumerators:
             enumeratorParams={}
             if isinstance(enumerator,tuple):
