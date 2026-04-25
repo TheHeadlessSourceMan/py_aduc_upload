@@ -150,10 +150,11 @@ class AducConnection:
         """
         if port is None:
             import port_picker_ui
-            port=port_picker_ui.askForPort(dontAskIfOnlyOne=True)
-            if port is None:
-                raise Exception("There are no com ports.")
-            port=port[0]
+            portInfo=port_picker_ui.askForPort(dontAskIfOnlyOne=True)
+            if portInfo[0]:
+                port=portInfo[0]
+            else:
+                raise Exception("No port.")
         self.port:str=port
         self.baudRate=baudRate
         self.byteSize=byteSize
@@ -201,7 +202,7 @@ class AducConnection:
         self.disconnect()
         return self.connect()
 
-    def _checksum(self,data)->bytes:
+    def _checksum(self,data:bytes)->bytes:
         """
         Calculate the checksum of a device packet
         """
@@ -433,8 +434,8 @@ class AducConnection:
         determine if the data looks like elf format
         """
         if len(data)>=4:
-            asc=data[1:4].decode('ascii')
-            return asc==b'ELF'
+            asc=data[1:4].decode('ascii',errors='ignore')
+            return asc=='ELF'
         return False
 
     def uploadData(self,
@@ -464,7 +465,7 @@ class AducConnection:
             raise NotImplementedError("decode elf bytes!")
         else:
             ihex=intelhex.IntelHex()
-            ihex.frombytes(data)
+            ihex.frombytes(data) # type: ignore
         return self.uploadIhex(ihex,andVerify,andRun,andReset)
 
     def uploadIhex(self,
@@ -482,18 +483,20 @@ class AducConnection:
                 postRun=None
         self.waitForDevice()
         totalBytes=0
-        for start,stop in ihex.segments():
+        segments=typing.cast(typing.List[typing.Tuple[int,int]],ihex.segments())
+        for start,stop in segments:
             totalBytes+=stop-start
         # erase
-        for start,stop in ihex.segments():
+        for start,stop in segments:
             self.erase(start,stop-start)
         # write
         uploaded=0
-        for start,stop in ihex.segments():
+        for start,stop in segments:
             amt=stop-start
             # wait until after this loop to do run/reset
             # in case there is more than 1 segment
-            ret=self.write(start,ihex.tobinarray(start,stop),
+            ret=self.write(start,
+                    ihex.tobinarray(start,stop), # type: ignore
                 andVerify,False,False,noErase=True)
             if not ret:
                 break
