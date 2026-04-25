@@ -139,8 +139,8 @@ class AducConnection:
         byteSize:int=8,
         parity:str='N',
         stopBits:float=1,
-        xonXoff:int=0,
-        rtsCts:int=0,
+        xonXoff:bool=False,
+        rtsCts:bool=False,
         statusCB:StatusCB=stdoutCB.statusCB,
         percentCB:PercentCB=stdoutCB.percentCB
         ):
@@ -181,7 +181,8 @@ class AducConnection:
             self.percentCB(0)
             self._connection=serial.Serial(
                 self.port,self.baudRate,self.byteSize,self.parity,
-                self.stopBits,self.timeout,self.xonXoff,self.rtsCts)
+                self.stopBits,self.timeout,
+                xonxoff=self.xonXoff,rtscts=self.rtsCts)
         return self._connection
 
     def disconnect(self):

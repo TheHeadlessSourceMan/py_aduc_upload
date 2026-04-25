@@ -47,6 +47,9 @@ class PortPickerWindow(tk.Toplevel):
         validationCallbackParams:typing.Optional[
             typing.Dict[str,typing.Any]]=None):
         """ """
+        if tkMaster is None:
+            tkMaster=tk.Tk()
+            tkMaster.withdraw() # hide the empty root window
         tk.Toplevel.__init__(self,master=tkMaster)
         if caption is None:
             caption='Select serial port'
@@ -58,7 +61,7 @@ class PortPickerWindow(tk.Toplevel):
         self.ignorePorts=ignorePorts
         self.enumerators=[self.systemComPortEnumerator]
         self.title(title)
-        w=150#+7*len(title)
+        w=150+7*len(title)
         h=55
         self.geometry(f'{w}x{h}')
         here=os.path.abspath(__file__).rsplit(os.sep,1)[0]
@@ -73,7 +76,7 @@ class PortPickerWindow(tk.Toplevel):
         self.combo=ttk.Combobox(self,
             textvariable=self.comboboxValue,values=values)
         self.combo.pack()
-        self.combo.bind('<<ComboboxSelected>>',self.onSelect)
+        self.combo.bind('<<ComboboxSelected>>',self.onSelect) # type: ignore
         self._refreshTimerKeepGoing=True
         self.after(1000,self.onTimer)
 
@@ -151,7 +154,7 @@ class PortPickerWindow(tk.Toplevel):
         cls._ports=[]
         portNames:typing.Set[str]=set()
         for enumerator in enumerators:
-            enumeratorParams={}
+            enumeratorParams:typing.Dict[str,typing.Any]={}
             if isinstance(enumerator,tuple):
                 enumeratorParams=enumerator[1] # noqa: E501 # pylint: disable=line-too-long,unsubscriptable-object # I don't know why it thinks this is unsubscriptable when I do a specific type check to ensure it is a tuple
                 enumerator=enumerator[0] # noqa: E501 # pylint: disable=line-too-long,unsubscriptable-object

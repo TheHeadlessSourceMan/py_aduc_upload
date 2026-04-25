@@ -19,7 +19,7 @@
             "request": "launch",
             "program": "aduc_upload.py",
             "console": "integratedTerminal",
-            "args": ["--port=COM6","..\\..\\samples\\stackoverflow_uart\\main.hex"],
+            "args": ["UART.hex"],
             "justMyCode": true
         },
         {
@@ -28,7 +28,7 @@
             "request": "launch",
             "program": "aduc_upload.py",
             "console": "integratedTerminal",
-            "args": ["--port=COM6","..\\..\\samples\\stackoverflow_uart\\main.hex","--run"],
+            "args": ["--port=COM6","UART.hex","--run"],
             "justMyCode": true
         },
         {
@@ -37,7 +37,7 @@
             "request": "launch",
             "program": "aduc_upload.py",
             "console": "integratedTerminal",
-            "args": ["--port=COM6","..\\..\\samples\\stackoverflow_uart\\main.hex","--reset"],
+            "args": ["--port=COM6","UART.hex","--reset"],
             "justMyCode": true
         }
     ]
