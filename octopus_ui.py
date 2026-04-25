@@ -52,7 +52,7 @@ class PortStatusComponent(tk.LabelFrame):
         self.statusControl=ttk.Label(self,textvariable=self.statusVar)
         self.statusControl.pack(expand=True, fill='x')
         self.progressControl=ttk.Progressbar(self,length=100)
-        self.progressControl.pack(expand='yes', fill='x')
+        self.progressControl.pack(expand='yes',fill='x')
         #self.pack(expand='yes', fill='x')
         self._progress=0.0
         self._status=''
@@ -302,13 +302,15 @@ class PortComponents:
         """
         Add a series of ports
         """
-        ret=[]
+        ret:typing.List[PortStatusComponent]=[]
         if portNames is None:
             return ret
         if isinstance(portNames,str):
             portNames=(portNames,)
         for pn in portNames:
-            ret.append(self.add(pn))
+            psc=self.add(pn)
+            if psc is not None:
+                ret.append(psc)
         return ret
 
     def assign(self,
@@ -317,19 +319,21 @@ class PortComponents:
         """
         Assign this to exactly equal a series of ports
         """
-        ret=[]
+        ret:typing.List[PortStatusComponent]=[]
         if portNames is None:
             portNames=[]
         elif isinstance(portNames,str):
             portNames=(portNames,)
-        stuffToRemove=[]
+        stuffToRemove:typing.List[str]=[]
         for k in self._components:
             if k not in portNames:
                 stuffToRemove.append(k)
         for k in stuffToRemove:
             self.remove(k)
         for pn in portNames:
-            ret.append(self.add(pn))
+            psc=self.add(pn)
+            if psc is not None:
+                ret.append(psc)
         return ret
 
     def remove(self,portName:str)->None:
